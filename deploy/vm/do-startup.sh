@@ -84,8 +84,9 @@ if [[ $(hostname -s) = *"master"* ]]; then
 	mkdir -p /root/.kube
 	kubectl completion bash > /root/.kube/completion
 	cat <<EOF >>/root/.bashrc
-alias kc=kubectl
 source /root/.kube/completion
+alias kc=kubectl
+export GOPATH=/root/go
 EOF
 
 	# Gluster-Kubernetes
@@ -101,12 +102,40 @@ EOF
 	chmod 770 s3-curl/*.pl
 	yum install perl-Digest-HMAC -y -q -e 0
 
-	# Kubeadm
+	# helm
+	echo "-- Installing helm"
+	wget -P /tmp/ https://storage.googleapis.com/kubernetes-helm/helm-v2.5.0-linux-amd64.tar.gz
+	tar -zxvf /tmp/helm-v2.5.0-linux-amd64.tar.gz -C /tmp/
+	mv /tmp/linux-amd64/helm /usr/local/bin/
+
+	# socat
+	echo "-- Installing socat"
+	yum install -y socat
+
+	# golang
+	echo "-- Installing golang"
+	yum install -y golang
+
+	# git
+	echo "-- Installing git"
+	yum install -y git
+
+	# minio s3 client
+	echo "-- Installing minio"
+	go get -u github.com/minio/minio-go
+
+	# heketi-client
 	echo "-- Installing heketi-client"
 	curl -sSL https://github.com/heketi/heketi/releases/download/v4.0.0/heketi-client-v4.0.0.linux.amd64.tar.gz | tar -xz
 	mv $(find ./ -name heketi-cli) /usr/bin/
+
+	# jon's service-catalog repo
+	echo "-- Installing Jon's service-catalog repo"
+	mkdir -p /root/copejon && cd /root/copejon
+	git clone https://github.com/copejon/service-catalog.git
+	cd -
 	
-	# Kubeadm Init
+	# Kubeadm init
 	echo "-- Initializing via kubeadm..."
 	echo "To join nodes to the master, run this on each node: " >> $NEXT_STEPS_FILE
 	kubeadm init --pod-network-cidr=10.244.0.0/16 | tee >(sed -n '/kubeadm join --token/p' >> $NEXT_STEPS_FILE)
@@ -116,14 +145,33 @@ EOF
 	kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
 	kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel-rbac.yml
 
-	# write next (manual) steps to next_steps_file
-	echo \
-"Setup the topology file:
-    cp ${ROOT}/gluster-kubernetes-block-and-s3/deploy/topology.json.sample ${ROOT}/gluster-kubernetes-block-and-s3/deploy/topology.json" >> $NEXT_STEPS_FILE
-	echo \
-"Run gk-deploy:
-    cd ${ROOT}/gluster-kubernetes-block-and-s3/deploy
-    ./gk-deploy topology.json -gvy --object-account=jcope --object-user=jcope --object-password=jcope --no-block" >> $NEXT_STEPS_FILE
+	# write next (manual) steps to next_steps file
+	cat <<EOF >$NEXT_STEPS_FILE
+
+Perfom the following manual steps on the master node:
+
+  # config the topology file:
+  cp ${ROOT}/gluster-kubernetes-block-and-s3/deploy/topology.json.sample ${ROOT}/gluster-kubernetes-block-and-s3/deploy/topology.json
+  # edit topology to contain hostname, ip and /dev/sdb devices from each node
+
+  #run gk-deploy:
+  cd ${ROOT}/gluster-kubernetes-block-and-s3/deploy
+  ./gk-deploy topology.json -gvy --object-account=jcope --object-user=jcope --object-password=jcope --no-block
+
+  # find gluster-s3 service endpoint
+  kubectl get svc gluster-s3-service  #(cluster-ip:port)
+  # modify s3-curl/s3curl.pl script: `my @endpoints = ( '<above-IP (no-port)>', )
+
+  # create "bucket1"
+  s3-curl/s3curl.pl --debug --id "jcope:jcope" --key "jcope" --put /dev/null -- -k -v http://gluster-s3-svc-ip:8080/bucket1
+  # create object "bucket1/jeff"
+  s3-curl/s3curl.pl --debug --id "jcope:jcope" --key "jcope" --put /dev/null -- -k -v http://10 .108.227.247:8080/bucket1/jeff
+  # create local file: stuff.txt with content...
+  # create object from local file
+  s3-curl/s3curl.pl --debug --id "jcope:jcope" --key "jcope" --put stuff.txt -- -k -v http://10 .108.227.247:8080/bucket1/jeff
+  # get object "bucket1/jeff"
+  s3-curl/s3curl.pl --debug --id "jcope:jcope" --key "jcope" -- -k -v http://10 .108.227.247:8080/bucket1/jeff
+EOF
 fi
 
 touch $SUCCESS_FILE
