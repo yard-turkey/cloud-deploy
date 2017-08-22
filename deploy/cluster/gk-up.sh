@@ -6,7 +6,7 @@ set -x
 set -e
 set -u
 
-REPO_ROOT="$(dirname '${BASH_SOUCE[0]}')/../.."
+REPO_ROOT="$(realpath $(dirname '${BASH_SOUCE[0]}')/../..)"
 STARTUP_SCRIPT="${REPO_ROOT}/deploy/vm/do-startup.sh"
 source "$REPO_ROOT/deploy/cluster/lib/gk-config.sh" 
 
