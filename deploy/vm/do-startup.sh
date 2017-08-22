@@ -108,6 +108,7 @@ EOF
 	
 	# Kubeadm Init
 	echo "-- Initializing via kubeadm..."
+	echo "To join nodes to the master, run this on each node: " >> $NEXT_STEPS_FILE
 	kubeadm init --pod-network-cidr=10.244.0.0/16 | tee >(sed -n '/kubeadm join --token/p' >> $NEXT_STEPS_FILE)
 	mkdir -p /root/.kube
 	sudo cp -f /etc/kubernetes/admin.conf /root/.kube/config
@@ -122,7 +123,7 @@ EOF
 	echo \
 "Run gk-deploy:
     cd ${ROOT}/gluster-kubernetes-block-and-s3/deploy
-    ./gk-deploy topology.json -gvy --object-account=jcope --object-user=jcope --object-password=jcope" >> $NEXT_STEPS_FILE
+    ./gk-deploy topology.json -gvy --object-account=jcope --object-user=jcope --object-password=jcope --no-block" >> $NEXT_STEPS_FILE
 fi
 
 touch $SUCCESS_FILE
