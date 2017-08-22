@@ -5,8 +5,7 @@
 # Returns: Array of stings.
 # Args:
 #	1 - int, number of unique suffixes required.
-function unique_id_arr {
-	NUM_IDS=${1:-"4"}
-	ARR=( "$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 4 | head -n $NUM_IDS)" )
-	return $ARR
+function util::unique_id_arr {
+	local num_ids=${1:-"4"}
+	UUIDS="$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 4 | head -n $num_ids)"
 }
