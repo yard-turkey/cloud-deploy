@@ -33,11 +33,12 @@ BLK_PREFIX="$GCP_USER-gfs-block"
 for (( i=0; i < ${#GK_NODE_ARR[@]}; i++ )); do
 	GFS_BLK_ARR[$i]="$BLK_PREFIX-$i"
 done
-gcloud compute disks create "${GFS_BLK_ARR[@]}" --size=$GLUSTER_DISK_SIZE --zone=$GCP_ZONE
+${GCLOUD} compute disks create "${GFS_BLK_ARR[@]}" --size=$GLUSTER_DISK_SIZE --zone=$GCP_ZONE
 
 # Attach GFS Block Devices
 for (( i=0; i < ${#GFS_BLK_ARR[@]}; i++ )); do
-	gcloud compute instances attach-disk ${GK_NODE_ARR[$i]} --disk=${GFS_BLK_ARR[$i]} --zone=$GCP_ZONE
+	${GCLOUD} compute instances attach-disk ${GK_NODE_ARR[$i]} --disk=${GFS_BLK_ARR[$i]} --zone=$GCP_ZONE
+	${GCLOUD} compute instances set-disk-auto-delete ${GK_NODE_ARR[$i]} --disk=${GFS_BLK_ARR[$i]} --zone=$GCP_ZONE
 done
 # Create master Instance
 GK_MASTER="$GCP_USER-gk-master"
