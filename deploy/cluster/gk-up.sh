@@ -12,7 +12,7 @@ source "$REPO_ROOT/deploy/cluster/lib/gk-config.sh"
 
 echo "-- Gluster-Kubernetes --"
 echo \
-"This script will deploy a 4 node kubernetes cluster with dependencies for
+"This script will deploy a $GK_NUM_NODES node kubernetes cluster with dependencies for
 testing glsuter-kubernetes and object storage."
 # Start Up Script
 # Create Instance Template
