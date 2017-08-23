@@ -79,7 +79,7 @@ if [[ $(hostname -s) = *"master"* ]]; then
 	echo "Looks like this is the master node. Initializing kubeadm"
 
 	# QoL Setup
-	yum install bash-completion tmux unzip -y
+	yum install bash-completion tmux unzip -y -q -e 0
 	curl -sSLO https://raw.githubusercontent.com/copejon/sandbox/master/.tmux.conf
 	mkdir -p /root/.kube
 	kubectl completion bash > /root/.kube/completion
@@ -87,6 +87,7 @@ if [[ $(hostname -s) = *"master"* ]]; then
 source /root/.kube/completion
 alias kc=kubectl
 export GOPATH=/root/go
+export PATH=$PATH:/usr/local/bin
 EOF
 
 	# Gluster-Kubernetes
@@ -104,21 +105,21 @@ EOF
 
 	# helm
 	echo "-- Installing helm"
-	wget -P /tmp/ https://storage.googleapis.com/kubernetes-helm/helm-v2.5.0-linux-amd64.tar.gz
-	tar -zxvf /tmp/helm-v2.5.0-linux-amd64.tar.gz -C /tmp/
+	curl -sSLO https://storage.googleapis.com/kubernetes-helm/helm-v2.5.0-linux-amd64.tar.gz
+	tar -zxvf helm-v2.5.0-linux-amd64.tar.gz -C /tmp
 	mv /tmp/linux-amd64/helm /usr/local/bin/
 
 	# socat
 	echo "-- Installing socat"
-	yum install -y socat
+	yum install socat -y -q -e 0
 
 	# golang
 	echo "-- Installing golang"
-	yum install -y golang
+	yum install golang -y -q -e 0
 
 	# git
 	echo "-- Installing git"
-	yum install -y git
+	yum install git -y -q -e 0
 
 	# minio s3 client
 	echo "-- Installing minio"
