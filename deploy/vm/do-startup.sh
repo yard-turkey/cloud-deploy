@@ -84,6 +84,10 @@ fi
 if [[ $(hostname -s) = *"master"* ]]; then
 	echo "-- Looks like this is the master node. Doing extra initialization."
 
+	echo "-- Setting up kube completion"
+	mkdir -p .kube/
+	kubectl completion bash > .kube/completion
+
 	cat <<EOF >>/root/.bashrc
 source /root/.kube/completion
 alias kc=kubectl
@@ -97,9 +101,10 @@ EOF
 	yum install bash-completion tmux unzip -y -q -e 0
 	echo "-- Pulling in custom tmux.conf"
 	curl -sSLO https://raw.githubusercontent.com/copejon/sandbox/master/.tmux.conf
-	echo "-- Setting up kube completion"
-	mkdir -p .kube/
-	kubectl completion bash > .kube/completion
+
+	# git
+	echo "-- Installing git"
+	yum install git -y -q -e 0
 
 	# Gluster-Kubernetes
 	echo "-- Getting gluster-kubernetes (s3 and block)"
@@ -108,7 +113,7 @@ EOF
 	# s3Curl
 	echo "-- Installing s3curl"
 	curl -sSLO http://s3.amazonaws.com/doc/s3-example-code/s3-curl.zip
-	unzip s3-curl.zip
+	unzip -o s3-curl.zip
 	mv s3-curl.zip /tmp/
 	chmod 770 s3-curl/*.pl
 	yum install perl-Digest-HMAC -y -q -e 0
@@ -137,10 +142,6 @@ EOF
 	curl -sSL https://github.com/heketi/heketi/releases/download/v4.0.0/heketi-client-v4.0.0.linux.amd64.tar.gz | tar -xz -C /tmp/
 	mv $(find /tmp/ -name heketi-cli) /usr/bin/
 	chmod +x /usr/bin/heketi-cli
-
-	# git
-	echo "-- Installing git"
-	yum install git -y -q -e 0
 
 	# demo service-catalog repo
 	echo "-- Installing demo service-catalog repo"
@@ -189,4 +190,4 @@ EOF
 fi
 
 touch $SUCCESS_FILE
-echo "Start up completion!"
+echo "Start up complete! See the $NEXT_STEPS_FILE for setting up kubernetes and deploying gluster."

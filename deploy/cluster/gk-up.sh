@@ -164,3 +164,7 @@ while :; do
 		(( ++attempt ))
 	fi
 done
+
+# Update nodes' hosts file
+
+
