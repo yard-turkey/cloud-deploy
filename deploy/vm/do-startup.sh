@@ -4,34 +4,25 @@
 ###
 ROOT=/root
 LOG_FILE=${ROOT}/start-script.log
-SUCCESS_FILE=${ROOT}/__STARTUP_SUCCESS
-FAIL_FILE=$ROOT/__STARTUP_FAIL
+SUCCESS_FILE=${ROOT}/__SUCCESS
+KUBE_JOIN_FILE=/tmp/kube_join
 NEXT_STEPS_FILE=${ROOT}/next_steps
 GOPATH=$ROOT/go
-
-on-success () { touch $SUCCESS_FILE; }
-
-on-fail () { touch $FAIL_FILE; }
-
-set -eo pipefail
-
 if [ $(id -u) != 0  ]; then
 	echo "!!! Switching to root  !!!"
 	sudo su
 fi
 
-echo "-- Changing to $ROOT dir"
-cd $ROOT
+set -eo pipefail
 
 exec 3>&1 4>&2
-trap $( exec 1>&3 2>&4 && on-fail ) 1 2 3
-trap $( exec 1>&3 2>&4 && on-success ) 0
 exec 1>${LOG_FILE} 2>&1
 
 echo "============================================="
 echo "               Start-Up Script"
 echo "============================================="
-
+echo "-- Changing to $ROOT dir"
+cd $ROOT
 echo "-- Stopping Firewall"
 systemctl stop firewalld && systemctl disable firewalld
 echo "-- Disabling SELinux"
@@ -74,16 +65,13 @@ EOF"
 yum install kubelet kubeadm -y -q -e 0
 
 # Start the kubelet on minions only
-if ! [[ $(hostname -s) = *"master"* ]]; then
-	systemctl enable kubelet
-	systemctl start kubelet
-fi
+systemctl enable kubelet
+systemctl start kubelet
 
 
 # Initialize the master node 
 if [[ $(hostname -s) = *"master"* ]]; then
 	echo "-- Looks like this is the master node. Doing extra initialization."
-
 	echo "-- Setting up kube completion"
 	mkdir -p .kube/
 	kubectl completion bash > .kube/completion
@@ -92,7 +80,6 @@ if [[ $(hostname -s) = *"master"* ]]; then
 source /root/.kube/completion
 alias kc=kubectl
 export GOPATH=$GOPATH
-export PATH=\$PATH:/usr/local/bin
 EOF
 	# Reload bash_profile
 	source .bash_profile
@@ -145,21 +132,26 @@ EOF
 
 	# demo service-catalog repo
 	echo "-- Installing demo service-catalog repo"
-	SCPATH=$GOPATH/src/github.com/kubernetes-incubator
+	export SCPATH=$GOPATH/src/github.com/kubernetes-incubator
+	echo "export SCPATH=$SCPATH" >> $ROOT/.bash_profile
 	mkdir -p $SCPATH
-	git clone https://github.com/copejon/service-catalog.git $SCPATH/service-catalog
+	git clone https://github.com/copejon/service-catalog.git $SCPATH/service-catalog &>/dev/null
 	
 	printf "=== Setup Is almost complete! ==\n=== Do the following steps in order.\n" > $NEXT_STEPS_FILE
 
 	# Kubeadm init
 	echo "-- Initializing via kubeadm..."
 	printf "To join nodes to the master, run this on each node: " >> $NEXT_STEPS_FILE
-	kubeadm init --pod-network-cidr=10.244.0.0/16 | tee >(sed -n '/kubeadm join --token/p' >> $NEXT_STEPS_FILE)
+	kubeadm init --pod-network-cidr=10.244.0.0/16 | tee >(sed -n '/kubeadm join --token/p' >> $KUBE_JOIN_FILE)
+	cat $KUBE_JOIN_FILE >> $NEXT_STEPS_FILE
 	mkdir -p $ROOT/.kube
 	sudo cp -f /etc/kubernetes/admin.conf $ROOT/.kube/config
 	sudo chown $(id -u):$(id -g) $ROOT/.kube/config
 	kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
 	kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel-rbac.yml
+	
+	echo "Cordoning master kubelet"
+	kubectl cordon $(kubectl get nodes | grep 'master' | awk '{print $1}')
 
 	# write next (manual) steps to next_steps file
 	cat <<EOF >>$NEXT_STEPS_FILE
@@ -188,6 +180,5 @@ Perfom the following manual steps on the master node:
   s3-curl/s3curl.pl --debug --id 'user:user' --key 'user' -- -k -v -o mystuff.txt http://gluster-s3-svc-ip:8080/bucket1/stuff
 EOF
 fi
-
-touch $SUCCESS_FILE
 echo "Start up complete! See the $NEXT_STEPS_FILE for setting up kubernetes and deploying gluster."
+touch $SUCCESS_FILE

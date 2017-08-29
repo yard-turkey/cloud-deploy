@@ -1,11 +1,6 @@
 #! /bin/bash
 
-#TODO add cleanup on fail for better idempotency
-#TODO Poll VMs for status RUNNING
-#TODO Poll via SSH kubelet for Ready
-#TODO Poll master for kube node READY
-#TODO Get via ssh kube master IP, kubeadm token
-#TODO Do via ssh kube join from nodes
+#TODO add cleanup on fail 
 #TODO Once all nodes READY/RUNNING, do gk-deploy
 
 set -euo pipefail
@@ -90,16 +85,15 @@ for (( i=0; i < ${#GK_NODE_ARR[@]}; i++ )); do
 	GFS_BLK_ARR[$i]="$BLK_PREFIX-$i"
 done
 echo "-- Looking for old GFS disks with prefix $BLK_PREFIX."
-OLD_GFS_BLK_ARR=($(gcloud compute disks list --regexp='$BLK_PREFIX.*' 2>/dev/null | awk 'NR>1{print $1}'))
-if (( ${#OLD_GFS_BLK_ARR[@]} > 0 )); then
-	echo "-- Disk(s) ${OLD_GFS_BLK_ARR[@]} already exists. Deleting them before proceeding."
-	if ! gcloud compute disks delete "${OLD_GFS_BLK_ARR[@]}" --zone=$GCP_ZONE --quiet; then
-		echo "-- Failed to delete old GFS disk"
-		exit 1
+for disk in ${GFS_BLK_ARR[@]}; do
+	if gcloud compute disks describe $disk &>/dev/null; then
+		echo "Found disk $disk. Deleting."
+		if ! gcloud compute disks delete $disk --zone=$GCP_ZONE --quiet; then
+			echo "-- Failed to delete old GFS disk"
+			exit 1
+		fi
 	fi
-else
-	echo "-- No pre-existing GFS block devices found."
-fi
+done
 # Create GFS disks
 echo "-- Creating GFS block devices: ${GFS_BLK_ARR[@]}"
 attempt=0
@@ -123,8 +117,8 @@ for (( i=0; i < ${#GFS_BLK_ARR[@]}; i++ )); do
 	attempt=0
 	while :; do
 		echo "-- Attempt $attempt to attach disk ${GFS_BLK_ARR[$i]} to ${GK_NODE_ARR[$i]}"
-		if	gcloud compute instances attach-disk ${GK_NODE_ARR[$i]} --disk=${GFS_BLK_ARR[$i]} --zone=$GCP_ZONE && \
-			gcloud compute instances set-disk-auto-delete ${GK_NODE_ARR[$i]} --disk=${GFS_BLK_ARR[$i]} --zone=$GCP_ZONE; then
+		if	$( gcloud compute instances attach-disk ${GK_NODE_ARR[$i]} --disk=${GFS_BLK_ARR[$i]} --zone=$GCP_ZONE && \
+			gcloud compute instances set-disk-auto-delete ${GK_NODE_ARR[$i]} --disk=${GFS_BLK_ARR[$i]} --zone=$GCP_ZONE); then
 			break
 		else
 			if (( attempt >= attempt_max )); then
@@ -164,7 +158,44 @@ while :; do
 		(( ++attempt ))
 	fi
 done
-
 # Update nodes' hosts file
-
-
+echo "-- Updating hosts file on master."
+HOSTS=$(gcloud compute instances list --regexp=jcope.* | awk 'NR>1{ printf "%-30s%s\n", $1, $4}')
+if ! gcloud compute ssh $GK_MASTER --command="echo \"${HOSTS}\" >> /etc/hosts"; then
+	echo "-- Failed to update master's /etc/hosts file."
+fi
+# Waiting for startup script to complete.
+attempt=0
+echo "-- Waiting for start up scripts to complete on $GK_MASTER."
+while ! gcloud compute ssh $GK_MASTER --command="cat /root/__SUCCESS &>/dev/null"; do
+	echo -ne "-- Attempt $attempt to check /root/__SUCCESS file on $GK_MASTER.\\r"
+	if (( attempt >= 100  )); then
+		echo "-- Timeout waiting for $GK_MASTER start script to complete."
+		echo "-- Latest log:"
+		gcloud compute ssh $GK_MASTER --command="cat /root/start-script.log"
+		exit 1
+	fi
+	(( ++attempt ))
+	sleep 1
+done
+echo "-- Script complete!!"
+# Attach kube minions to master.
+echo "-- Attaching minions to kube master." 
+attempt=0
+token=$(gcloud compute ssh $GK_MASTER --command="kubeadm token list" | awk 'NR>1{print $1}')
+master_internal_ip=$(gcloud compute instances list $GK_MASTER | awk 'NR>1{print $4}')
+join_cmd="kubeadm join --token $token $master_internal_ip:6443"
+for node in "${GK_NODE_ARR[@]}"; do
+	while ! gcloud compute ssh $node --command="cat /root/__SUCCESS &>/dev/null"; do
+		echo "-- Attempt $attempt. Waiting for node $node start script to finish.."
+		if (( attempt >= 30 )); then
+			echo "-- Timeout waiting for start up on node $node."
+			exit 1
+		fi
+		(( ++attempt ))
+		sleep 1
+	done
+	# Attach kubelet to master
+	echo "-- Executing '$join_cmd' on node $node."
+	gcloud compute ssh $node --command="${join_cmd}"
+done

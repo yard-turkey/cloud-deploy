@@ -4,7 +4,6 @@
 GCP_USER=${GCP_USER:-"$(gcloud config get-value account 2>/dev/null | sed 's#@.*##')"}
 GK_NUM_NODES=${GK_NUM_NODES:-3}
 MASTER_NAME=${MASTER_NAME:-"$GCP_USER-gk-master"}
-NODE_NAME=${NODE_NAME:-"$GCP_USER-gk-node"}
 GCP_REGION=${GCP_REGION:-$(gcloud config get-value compute/region 2>/dev/null)}
 GCP_ZONE=${GCP_ZONE:-"$(gcloud config get-value compute/zone 2>/dev/null)"}
 GCP_PROJECT=${PROJECT:-"$(gcloud config get-value project)"}
@@ -31,7 +30,6 @@ echo \
 GCP_USER=$GCP_USER
 GK_NUM_NODES=$GK_NUM_NODES
 MASTER_NAME=$MASTER_NAME
-NODE_NAME=$NODE_NAME
 GCP_ZONE=$GCP_ZONE
 GCP_REGION=$GCP_REGION
 GCP_NETWORK=$GCP_NETWORK
