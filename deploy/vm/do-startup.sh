@@ -24,8 +24,8 @@ echo "-- Changing to $ROOT dir"
 cd $ROOT
 
 exec 3>&1 4>&2
-trap $( exec 1>&3 2>&4 && on-success ) 0
 trap $( exec 1>&3 2>&4 && on-fail ) 1 2 3
+trap $( exec 1>&3 2>&4 && on-success ) 0
 exec 1>${LOG_FILE} 2>&1
 
 echo "============================================="

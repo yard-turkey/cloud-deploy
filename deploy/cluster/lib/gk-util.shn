@@ -10,6 +10,25 @@ function util::unique_id_arr {
 	UUIDS="$(cat /dev/urandom | tr -dc 'a-z0-9' | fold -w 4 | head -n $num_ids)"
 }
 
+# check-binaries executes each binary with --version to check that it is
+# actually available.
+# args: none
+# return
+#	1 if binary --version fails
+#	0 if binary --version succeeds
+function util::check-binaries {
+	local ret=0
+	if ! gcloud --version; then
+		echo "$GCLOUD is not reachable from \$PATH"
+		ret=1
+	fi
+	if ! curl --version; then
+		echo "$CURL is not reacable from \$PATH"
+		ret=1
+	fi
+	return $ret
+}
+
 # pre-start-check looks for existing resources that may have been orphaned
 # from a prior run.
 # args:
@@ -20,10 +39,10 @@ function util::unique_id_arr {
 #	O_TEMPLATES		list of	instance template names		''			''
 #	O_DISKS			list of disk names					''			''
 function util::check-orphaned-resources {
-	local instances=$(gcloud compute instances list --regexp="$GCP_USER".* 2>/dev/null)
-	local instgroups=$(gcloud compute instance-groups list --regexp="$GCP_USER".* 2>/dev/null)
-	local templates=$(gcloud compute instance-templates list --regexp="$GCP_USER".* 2>/dev/null)
-	local disks=$(gcloud compute disks list --regexp="$GCP_USER".* 2>/dev/null)
+	local instances=$($GCLOUD compute instances list --regexp="$GCP_USER".* 2>/dev/null)
+	local instgroups=$($GCLOUD compute instance-groups list --regexp="$GCP_USER".* 2>/dev/null)
+	local templates=$($GCLOUD compute instance-templates list --regexp="$GCP_USER".* 2>/dev/null)
+	local disks=$($GCLOUD compute disks list --regexp="$GCP_USER".* 2>/dev/null)
 	if [[ -n "$instances" ]]; then
 		printf "\n========Found Instances========\n%s\n" "$instances"
 		INSTANCES_LIST=$(echo "$instances" | awk 'NR>1{print $1}')
@@ -44,27 +63,27 @@ function util::check-orphaned-resources {
 
 function util::do-cleanup {
 	if [[ -n "${GROUPS_LIST:-}"  ]]; then
-		if ! gcloud compute instance-groups managed delete "${GROUPS_LIST:-}" --quiet ; then
+		if ! $GCLOUD compute instance-groups managed delete "${GROUPS_LIST:-}" --quiet ; then
 			echo "Failed to clean up all instance groups. Remaining:"
-			gcloud compute instance-groups managed list --regexp="$GCP_USER".*
+			$GCLOUD compute instance-groups managed list --regexp="$GCP_USER".*
 		fi
 	fi
 	if [[ -n "${INSTANCES_LIST:-}" ]]; then
-		if ! gcloud compute instances delete ${INSTANCES_LIST:-} --quiet ; then
+		if ! $GCLOUD compute instances delete ${INSTANCES_LIST:-} --quiet ; then
 			echo "Failed to clean up all instances. Remaining:"
-			gcloud compute instances list --regexp="$GCP_USER".*
+			$GCLOUD compute instances list --regexp="$GCP_USER".*
 		fi
 	fi
 	if [[ -n "${TEMPLATES_LIST:-}" ]]; then
-		if ! gcloud compute instance-templates delete "${TEMPLATES_LIST:-}" --quiet ; then
+		if ! $GCLOUD compute instance-templates delete "${TEMPLATES_LIST:-}" --quiet ; then
 			echo "Failed to clean up all instances. Remaining:"
-			gcloud compute instance-templates list --regexp="$GCP_USER".*
+			$GCLOUD compute instance-templates list --regexp="$GCP_USER".*
 		fi
 	fi
 	if [[ -n "${DISKS_LIST:-}" ]]; then
-		if ! gcloud compute disks delete  "${DISKS_LIST:-}" --quiet ; then
+		if ! $GCLOUD compute disks delete  "${DISKS_LIST:-}" --quiet ; then
 			echo "Failed to clean up all instances. Remaining:"
-			gcloud compute disks list --regexp="$GCP_USER".*
+			$GCLOUD compute disks list --regexp="$GCP_USER".*
 		fi
 	fi
 }
