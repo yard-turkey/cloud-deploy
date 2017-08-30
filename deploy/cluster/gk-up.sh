@@ -39,7 +39,7 @@ if gcloud compute instance-templates describe $GK_TEMPLATE &>/dev/null; then
 else
 	echo "-- No pre-existing template found."
 fi
-attempt=0
+attempt=1
 readonly attempt_max=5
 # Create new template
 echo "-- Creating instance template: $GK_TEMPLATE."
@@ -54,7 +54,7 @@ while : ; do
 		then
 			break
 	else
-		if (( attempt >= attempt_max )); then
+		if (( attempt > attempt_max )); then
 			echo "-- Failed to create instance template after $attempt_max retries."
 			exit 1
 		fi
@@ -64,14 +64,14 @@ while : ; do
 done
 # Create new group
 echo "-- Creating instance group: $GK_GROUP."
-attempt=0
+attempt=1
 while : ; do
 	echo "-- Attempt $attempt to create instance groups $GK_GROUP.  Max retries: $attempt_max"
 	if gcloud compute instance-groups managed create $GK_GROUP --zone=$GCP_ZONE --template=$GK_TEMPLATE --size=$GK_NUM_NODES; then
 		GK_NODE_ARR=($(gcloud compute instance-groups managed list-instances $GK_GROUP --zone=$GCP_ZONE | awk 'NR>1{print $1}'))
 		break
 	else
-		if (( attempt >= attempt_max )); then
+		if (( attempt > attempt_max )); then
 			echo "-- Failed to create instance group $GK_GROUP after $attempt_max retries."
 			exit 1
 		fi
@@ -96,13 +96,13 @@ for disk in ${GFS_BLK_ARR[@]}; do
 done
 # Create GFS disks
 echo "-- Creating GFS block devices: ${GFS_BLK_ARR[@]}"
-attempt=0
+attempt=1
 while :; do
 	echo "-- Attempt $attempt to create gfs disks ${GFS_BLK_ARR[@]}. Max retries: $attempt_max"
 	if gcloud compute disks create "${GFS_BLK_ARR[@]}" --size=$GLUSTER_DISK_SIZE --zone=$GCP_ZONE; then
 		break
 	else
-		if (( attempt >= attempt_max )); then
+		if (( attempt > attempt_max )); then
 			echo "-- Failed to create gfs disk ${GFS_BLK_ARR[$i]} after $attempt_max retries."
 			exit 1
 		fi
@@ -114,14 +114,14 @@ done
 echo "-- Attaching GFS disks to nodes."
 for (( i=0; i < ${#GFS_BLK_ARR[@]}; i++ )); do
 	# Make several attach attempts per disk.
-	attempt=0
+	attempt=1
 	while :; do
 		echo "-- Attempt $attempt to attach disk ${GFS_BLK_ARR[$i]} to ${GK_NODE_ARR[$i]}"
 		if	$( gcloud compute instances attach-disk ${GK_NODE_ARR[$i]} --disk=${GFS_BLK_ARR[$i]} --zone=$GCP_ZONE && \
 			gcloud compute instances set-disk-auto-delete ${GK_NODE_ARR[$i]} --disk=${GFS_BLK_ARR[$i]} --zone=$GCP_ZONE); then
 			break
 		else
-			if (( attempt >= attempt_max )); then
+			if (( attempt > attempt_max )); then
 				echo "-- Failed to attach disk ${GFS_BLK_ARR[$i]} to ${GK_NODE_ARR[$i]}"
 				exit 1
 			fi
@@ -142,7 +142,7 @@ else
 	echo "-- No pre-existing master instance found."
 fi
 echo "-- Creating master instance: $GK_MASTER"
-attempt=0
+attempt=1
 while :; do
 	if gcloud compute instances create $GK_MASTER --boot-disk-auto-delete \
 		--boot-disk-size=$NODE_BOOT_DISK_SIZE --boot-disk-type=$NODE_BOOT_DISK_TYPE \
@@ -151,7 +151,7 @@ while :; do
 		--metadata-from-file="startup-script"=$STARTUP_SCRIPT; then
 		break
 	else
-		if (( attempt >= attempt_max )); then
+		if (( attempt > attempt_max )); then
 			echo "-- Failed to create instance $GK_MASTER after $attempt_max retries."
 			exit 1
 		fi
@@ -165,11 +165,11 @@ if ! gcloud compute ssh $GK_MASTER --command="echo \"${HOSTS}\" >> /etc/hosts"; 
 	echo "-- Failed to update master's /etc/hosts file."
 fi
 # Waiting for startup script to complete.
-attempt=0
+attempt=1
 echo "-- Waiting for start up scripts to complete on $GK_MASTER."
 while ! gcloud compute ssh $GK_MASTER --command="cat /root/__SUCCESS &>/dev/null"; do
 	echo -ne "-- Attempt $attempt to check /root/__SUCCESS file on $GK_MASTER.\\r"
-	if (( attempt >= 100  )); then
+	if (( attempt > 100  )); then
 		echo "-- Timeout waiting for $GK_MASTER start script to complete."
 		echo "-- Latest log:"
 		gcloud compute ssh $GK_MASTER --command="cat /root/start-script.log"
@@ -181,14 +181,14 @@ done
 echo "-- Script complete!!"
 # Attach kube minions to master.
 echo "-- Attaching minions to kube master." 
-attempt=0
+attempt=1
 token=$(gcloud compute ssh $GK_MASTER --command="kubeadm token list" | awk 'NR>1{print $1}')
 master_internal_ip=$(gcloud compute instances list $GK_MASTER | awk 'NR>1{print $4}')
 join_cmd="kubeadm join --token $token $master_internal_ip:6443"
 for node in "${GK_NODE_ARR[@]}"; do
 	while ! gcloud compute ssh $node --command="cat /root/__SUCCESS &>/dev/null"; do
 		echo "-- Attempt $attempt. Waiting for node $node start script to finish.."
-		if (( attempt >= 30 )); then
+		if (( attempt > 30 )); then
 			echo "-- Timeout waiting for start up on node $node."
 			exit 1
 		fi

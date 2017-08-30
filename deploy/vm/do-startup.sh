@@ -8,14 +8,15 @@ SUCCESS_FILE=${ROOT}/__SUCCESS
 KUBE_JOIN_FILE=/tmp/kube_join
 NEXT_STEPS_FILE=${ROOT}/next_steps
 GOPATH=$ROOT/go
+set -eo pipefail
+
 if [ $(id -u) != 0  ]; then
 	echo "!!! Switching to root  !!!"
 	sudo su
 fi
 
-set -eo pipefail
-
 exec 3>&1 4>&2
+trap 'exec 1>&3 2>&4' 0 1 2 3
 exec 1>${LOG_FILE} 2>&1
 
 echo "============================================="
@@ -92,7 +93,14 @@ EOF
 	# git
 	echo "-- Installing git"
 	yum install git -y -q -e 0
-
+	
+	# demo service-catalog repo
+	echo "-- Installing demo service-catalog repo"
+	export SCPATH=$GOPATH/src/github.com/kubernetes-incubator
+	echo "export SCPATH=$SCPATH" >> $ROOT/.bash_profile
+	mkdir -p $SCPATH
+	git clone https://github.com/copejon/service-catalog.git $SCPATH/service-catalog &>/dev/null
+	
 	# Gluster-Kubernetes
 	echo "-- Getting gluster-kubernetes (s3 and block)"
 	curl -sSL https://github.com/jarrpa/gluster-kubernetes/archive/block-and-s3.tar.gz | tar -xz
@@ -116,34 +124,18 @@ EOF
 	echo "-- Installing socat"
 	yum install socat -y -q -e 0
 
-	# golang
-	echo "-- Installing golang"
-	yum install golang -y -q -e 0
-
-	# minio-go
-	echo "-- Installing minio"
-	go get -u github.com/minio/minio-go
-
 	# heketi-cli
 	echo "-- Installing heketi-client"
 	curl -sSL https://github.com/heketi/heketi/releases/download/v4.0.0/heketi-client-v4.0.0.linux.amd64.tar.gz | tar -xz -C /tmp/
 	mv $(find /tmp/ -name heketi-cli) /usr/bin/
 	chmod +x /usr/bin/heketi-cli
 
-	# demo service-catalog repo
-	echo "-- Installing demo service-catalog repo"
-	export SCPATH=$GOPATH/src/github.com/kubernetes-incubator
-	echo "export SCPATH=$SCPATH" >> $ROOT/.bash_profile
-	mkdir -p $SCPATH
-	git clone https://github.com/copejon/service-catalog.git $SCPATH/service-catalog &>/dev/null
-	
 	printf "=== Setup Is almost complete! ==\n=== Do the following steps in order.\n" > $NEXT_STEPS_FILE
 
 	# Kubeadm init
 	echo "-- Initializing via kubeadm..."
-	printf "To join nodes to the master, run this on each node: " >> $NEXT_STEPS_FILE
 	kubeadm init --pod-network-cidr=10.244.0.0/16 | tee >(sed -n '/kubeadm join --token/p' >> $KUBE_JOIN_FILE)
-	cat $KUBE_JOIN_FILE >> $NEXT_STEPS_FILE
+	KUBE_JOIN_CMD=$(cat $KUBE_JOIN_FILE)
 	mkdir -p $ROOT/.kube
 	sudo cp -f /etc/kubernetes/admin.conf $ROOT/.kube/config
 	sudo chown $(id -u):$(id -g) $ROOT/.kube/config
@@ -157,6 +149,9 @@ EOF
 	cat <<EOF >>$NEXT_STEPS_FILE
 
 Perfom the following manual steps on the master node:
+
+  # From each kubernetes node, run:
+  $KUBE_JOIN_CMD
 
   # config the topology file:
   cp ${ROOT}/gluster-kubernetes-block-and-s3/deploy/topology.json.sample ${ROOT}/gluster-kubernetes-block-and-s3/deploy/topology.json
