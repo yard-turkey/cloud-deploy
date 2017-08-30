@@ -150,7 +150,7 @@ EOF
 
 Perfom the following manual steps on the master node:
 
-  # From each kubernetes node, run:
+  # For any additional kubernetes nodes, run (from node):
   $KUBE_JOIN_CMD
 
   # config the topology file:
