@@ -40,7 +40,7 @@ else
 	echo "-- No pre-existing template found."
 fi
 attempt=1
-readonly attempt_max=5
+attempt_max=5
 # Create new template
 echo "-- Creating instance template: $GK_TEMPLATE."
 while : ; do
@@ -161,9 +161,14 @@ done
 # Update nodes' hosts file
 echo "-- Updating hosts file on master."
 HOSTS=$(gcloud compute instances list --regexp=jcope.* | awk 'NR>1{ printf "%-30s%s\n", $1, $4}')
-if ! gcloud compute ssh $GK_MASTER --command="echo \"${HOSTS}\" >> /etc/hosts"; then
-	echo "-- Failed to update master's /etc/hosts file."
-fi
+attempt=1
+while ! gcloud compute ssh $GK_MASTER --command="echo \"${HOSTS}\" >> /etc/hosts"; do
+	if (( attempt > attempt_max )); then
+		echo  "-- Failed to update master's /etc/hosts file.  Do so manually with \`gcloud compute instances list --regexp=$GCP_USER.*\` to get internal IPs.\\r"
+	fi
+	echo -ne "-- Attempt $attempt to update /etc/hosts file failed.  Retrying.\\r"
+	(( ++attempt ))
+done
 # Waiting for startup script to complete.
 attempt=1
 echo "-- Waiting for start up scripts to complete on $GK_MASTER."
