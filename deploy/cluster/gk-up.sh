@@ -1,6 +1,5 @@
 #! /bin/bash
 
-#TODO add cleanup on fail 
 #TODO Once all nodes READY/RUNNING, do gk-deploy
 
 set -euo pipefail
@@ -18,16 +17,15 @@ if ! gcloud --version &> /dev/null; then
 	exit 1
 fi
 # Cleanup old templates
-GK_TEMPLATE="${GCP_USER}-gluster-kubernetes"
-GK_GROUP="${GCP_USER}-gk-node"
+GK_TEMPLATE="$GK_NODE_NAME"
 echo "-- Looking for old templates."
 if gcloud compute instance-templates describe $GK_TEMPLATE &>/dev/null; then
 	echo "-- Instance template $GK_TEMPLATE already exists. Checking for dependent instance groups."
 	# Cleanup old groups.  Templates cannot be deleted until they have no dependent groups..
-	if gcloud compute instance-groups managed describe $GK_GROUP --zone=$GCP_ZONE &>/dev/null; then
-		echo "-- Instance group $GK_GROUP already exists, deleting before proceeding."
-		if ! gcloud compute instance-groups managed delete $GK_GROUP --zone=$GCP_ZONE --quiet; then
-			echo "-- Failed to delete instance group $GK_GROUP."
+	if gcloud compute instance-groups managed describe $GK_NODE_NAME --zone=$GCP_ZONE &>/dev/null; then
+		echo "-- Instance group $GK_NODE_NAME already exists, deleting before proceeding."
+		if ! gcloud compute instance-groups managed delete $GK_NODE_NAME --zone=$GCP_ZONE --quiet; then
+			echo "-- Failed to delete instance group $GK_NODE_NAME."
 			exit 1
 		fi
 	fi	
@@ -63,19 +61,19 @@ while : ; do
 	fi
 done
 # Create new group
-echo "-- Creating instance group: $GK_GROUP."
+echo "-- Creating instance group: $GK_NODE_NAME."
 attempt=1
 while : ; do
-	echo "-- Attempt $attempt to create instance groups $GK_GROUP.  Max retries: $attempt_max"
-	if gcloud compute instance-groups managed create $GK_GROUP --zone=$GCP_ZONE --template=$GK_TEMPLATE --size=$GK_NUM_NODES; then
-		GK_NODE_ARR=($(gcloud compute instance-groups managed list-instances $GK_GROUP --zone=$GCP_ZONE | awk 'NR>1{print $1}'))
+	echo "-- Attempt $attempt to create instance groups $GK_NODE_NAME.  Max retries: $attempt_max"
+	if gcloud compute instance-groups managed create $GK_NODE_NAME --zone=$GCP_ZONE --template=$GK_TEMPLATE --size=$GK_NUM_NODES; then
+		GK_NODE_ARR=($(gcloud compute instance-groups managed list-instances $GK_NODE_NAME --zone=$GCP_ZONE | awk 'NR>1{print $1}'))
 		break
 	else
 		if (( attempt > attempt_max )); then
-			echo "-- Failed to create instance group $GK_GROUP after $attempt_max retries."
+			echo "-- Failed to create instance group $GK_NODE_NAME after $attempt_max retries."
 			exit 1
 		fi
-		echo "-- Failed to create instance group $GK_GROUP, retrying."
+		echo "-- Failed to create instance group $GK_NODE_NAME, retrying."
 		(( ++attempt ))
 	fi
 done
@@ -130,21 +128,20 @@ for (( i=0; i < ${#GFS_BLK_ARR[@]}; i++ )); do
 	done
 done
 # Create master Instance
-GK_MASTER="$GCP_USER-gk-master"
-echo "-- Looking for old master instance: $GK_MASTER."
-if gcloud compute instances describe $GK_MASTER --zone=$GCP_ZONE &>/dev/null; then
-	echo "-- Instance $GK_MASTER  already exists. Deleting it before proceeding."
-	if ! gcloud compute instances delete $GK_MASTER --zone=$GCP_ZONE --quiet; then
-		echo "-- Failed to delete instance $GK_MASTER"
+echo "-- Looking for old master instance: $GK_MASTER_NAME."
+if gcloud compute instances describe $GK_MASTER_NAME --zone=$GCP_ZONE &>/dev/null; then
+	echo "-- Instance $GK_MASTER_NAME  already exists. Deleting it before proceeding."
+	if ! gcloud compute instances delete $GK_MASTER_NAME --zone=$GCP_ZONE --quiet; then
+		echo "-- Failed to delete instance $GK_MASTER_NAME"
 		exit 1
 	fi
 else
 	echo "-- No pre-existing master instance found."
 fi
-echo "-- Creating master instance: $GK_MASTER"
+echo "-- Creating master instance: $GK_MASTER_NAME"
 attempt=1
 while :; do
-	if gcloud compute instances create $GK_MASTER --boot-disk-auto-delete \
+	if gcloud compute instances create $GK_MASTER_NAME --boot-disk-auto-delete \
 		--boot-disk-size=$NODE_BOOT_DISK_SIZE --boot-disk-type=$NODE_BOOT_DISK_TYPE \
 		--image-project=$CLUSTER_OS_IMAGE_PROJECT --machine-type=$MASTER_MACHINE_TYPE \
 		--network=$GCP_NETWORK --zone=$GCP_ZONE --image=$CLUSTER_OS_IMAGE \
@@ -152,7 +149,7 @@ while :; do
 		break
 	else
 		if (( attempt > attempt_max )); then
-			echo "-- Failed to create instance $GK_MASTER after $attempt_max retries."
+			echo "-- Failed to create instance $GK_MASTER_NAME after $attempt_max retries."
 			exit 1
 		fi
 		(( ++attempt ))
@@ -160,24 +157,25 @@ while :; do
 done
 # Update nodes' hosts file
 echo "-- Updating hosts file on master."
-HOSTS=$(gcloud compute instances list --regexp=jcope.* | awk 'NR>1{ printf "%-30s%s\n", $1, $4}')
+HOSTS=($(gcloud compute instances list --regexp=$GK_NODE_NAME.* | awk 'NR>1{ printf "%-30s%s\n", $1, $4}'))
 attempt=1
-while ! gcloud compute ssh $GK_MASTER --command="echo \"${HOSTS}\" >> /etc/hosts"; do
+while ! gcloud compute ssh $GK_MASTER_NAME --command="echo \"${HOSTS}\" >> /etc/hosts"; do
 	if (( attempt > attempt_max )); then
 		echo  "-- Failed to update master's /etc/hosts file.  Do so manually with \`gcloud compute instances list --regexp=$GCP_USER.*\` to get internal IPs.\\r"
 	fi
 	echo -ne "-- Attempt $attempt to update /etc/hosts file failed.  Retrying.\\r"
 	(( ++attempt ))
 done
+
 # Waiting for startup script to complete.
 attempt=1
-echo "-- Waiting for start up scripts to complete on $GK_MASTER."
-while ! gcloud compute ssh $GK_MASTER --command="cat /root/__SUCCESS &>/dev/null"; do
-	echo -ne "-- Attempt $attempt to check /root/__SUCCESS file on $GK_MASTER.\\r"
+echo "-- Waiting for start up scripts to complete on $GK_MASTER_NAME."
+while ! gcloud compute ssh $GK_MASTER_NAME --command="cat /root/__SUCCESS &>/dev/null"; do
+	echo -ne "-- Attempt $attempt to check /root/__SUCCESS file on $GK_MASTER_NAME.\\r"
 	if (( attempt > 100  )); then
-		echo "-- Timeout waiting for $GK_MASTER start script to complete."
+		echo "-- Timeout waiting for $GK_MASTER_NAME start script to complete."
 		echo "-- Latest log:"
-		gcloud compute ssh $GK_MASTER --command="cat /root/start-script.log"
+		gcloud compute ssh $GK_MASTER_NAME --command="cat /root/start-script.log"
 		exit 1
 	fi
 	(( ++attempt ))
@@ -187,8 +185,8 @@ echo "-- Script complete!!"
 # Attach kube minions to master.
 echo "-- Attaching minions to kube master." 
 attempt=1
-token=$(gcloud compute ssh $GK_MASTER --command="kubeadm token list" | awk 'NR>1{print $1}')
-master_internal_ip=$(gcloud compute instances list $GK_MASTER | awk 'NR>1{print $4}')
+token=$(gcloud compute ssh $GK_MASTER_NAME --command="kubeadm token list" | awk 'NR>1{print $1}')
+master_internal_ip=$(gcloud compute instances list $GK_MASTER_NAME | awk 'NR>1{print $4}')
 join_cmd="kubeadm join --token $token $master_internal_ip:6443"
 for node in "${GK_NODE_ARR[@]}"; do
 	while ! gcloud compute ssh $node --command="cat /root/__SUCCESS &>/dev/null"; do
@@ -204,3 +202,49 @@ for node in "${GK_NODE_ARR[@]}"; do
 	echo "-- Executing '$join_cmd' on node $node."
 	gcloud compute ssh $node --command="${join_cmd}"
 done
+# Build Gluster-Kubernetes Topology File:
+HEKETI_NODE_TEMPLATE=$( cat <<EOF
+        {
+          "node": {
+            "hostnames": {
+              "manage": [
+                "NODE_NAME"
+              ],
+              "storage": [
+                "NODE_IP"
+              ]
+            },
+            "zone": 1
+          },
+          "devices": [
+            "/dev/sdb"
+          ]
+        } 
+EOF
+)
+GFS_NODES=""
+for (( i=0; i < ${#HOSTS[@]}; i+=2 )); do
+	dtr=""
+	if (( i * 2 < ${#HOSTS[@]} - 1 )); then
+		dtr=","
+	fi
+	NODE_NAME="${HOSTS[$i]}"
+	NODE_IP="${HOSTS[$i+1]}"
+	GFS_NODES=$(printf "%s\n%s%s" "$GFS_NODES" "$(sed -e "s/NODE_NAME/$NODE_NAME/" -e "s/NODE_IP/$NODE_IP/" <<<"$HEKETI_NODE_TEMPLATE")" "$dtr") 
+done
+TOPOLOGY=$( cat <<EOF
+{
+  "clusters": [
+    {
+      "nodes": [
+        $GFS_NODES 
+      ]
+    }
+  ]
+} 
+EOF
+)
+echo "DEBUG -- $TOPOLOGY" 
+
+echo "-- Cluster Deployed!"
+printf "To connect:\n\n\tgcloud compute ssh $GK_MASTER_NAME\n\n"

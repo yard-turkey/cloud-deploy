@@ -159,7 +159,7 @@ Perfom the following manual steps on the master node:
 
   #run gk-deploy:
   cd ${ROOT}/gluster-kubernetes-block-and-s3/deploy
-  ./gk-deploy topology.json -gvy --object-account=jcope --object-user=jcope --object-password=jcope --no-block
+  ./gk-deploy topology.json -gvy --object-account=$GCP_USER --object-user=$GCP_USER --object-password=$GCP_USER --no-block
 
   # find gluster-s3 service endpoint
   kubectl get svc gluster-s3-service  #(cluster-ip:port)
