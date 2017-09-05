@@ -223,16 +223,22 @@ HEKETI_NODE_TEMPLATE=$( cat <<EOF
 EOF
 )
 GFS_NODES=""
-for (( i=0; i < ${#HOSTS[@]}; i+=2 )); do
-	dtr=""
-	if (( i * 2 < ${#HOSTS[@]} - 1 )); then
-		dtr=","
+INTERVAL=2
+for (( i=0; i < ${#HOSTS[@]}; i+=INTERVAL )); do
+	dtr=","
+	if (( i >=  ${#HOSTS[@]} - INTERVAL )); then
+		dtr=""
 	fi
 	NODE_NAME="${HOSTS[$i]}"
 	NODE_IP="${HOSTS[$i+1]}"
+	# TODO still getting trailing comma after list
 	GFS_NODES=$(printf "%s\n%s%s" "$GFS_NODES" "$(sed -e "s/NODE_NAME/$NODE_NAME/" -e "s/NODE_IP/$NODE_IP/" <<<"$HEKETI_NODE_TEMPLATE")" "$dtr") 
 done
-TOPOLOGY=$( cat <<EOF
+TEMP_DIR="$REPO_ROOT/.tmp-$RANDOM-$$"
+mkdir $TEMP_DIR
+trap "rm -rf $TEMP_DIR" EXIT INT HUP TERM
+TOPOLOGY_FILE="$TEMP_DIR/topology.json"
+cat <<EOF > $TOPOLOGY_FILE
 {
   "clusters": [
     {
@@ -243,8 +249,11 @@ TOPOLOGY=$( cat <<EOF
   ]
 } 
 EOF
-)
-echo "DEBUG -- $TOPOLOGY" 
 
+# Deploy Gluster
+set -x
+gcloud compute scp $TOPOLOGY_FILE root@$GK_MASTER_NAME:/tmp/
+gcloud compute ssh $GK_MASTER_NAME --command="$(find /root/ -type f -wholename "*deploy/gk-deploy") -gvy --no-block --object-account=$GCP_USER --object-user=$GCP_USER --object-password=$GCP_USER /tmp/topology.json"
+set +x
 echo "-- Cluster Deployed!"
 printf "To connect:\n\n\tgcloud compute ssh $GK_MASTER_NAME\n\n"

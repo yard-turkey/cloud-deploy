@@ -1,6 +1,6 @@
 #! /bin/bash
 
-set -x 
+set -euo pipefail
 REPO_ROOT="$(realpath $(dirname $0)/../../)"
 
 source $REPO_ROOT/deploy/cluster/lib/gk-config.sh
