@@ -68,3 +68,16 @@ function util::do-cleanup {
 		fi
 	fi
 }
+
+# Args:
+#	$1) cmd to exec
+#	$2) Max Retries
+function util::exec_with_retry {
+	local cmd=$1
+	local max_retry=$2
+	local time_limite=300 # seconds
+}
+
+
+
+

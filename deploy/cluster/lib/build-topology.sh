@@ -1,5 +1,10 @@
 #! /bin/bash
 
+echo "-- Generate a GK-Deploy topology.json."
+echo "This script will output the json formated string to stdout"
+echo "It is designed to be standalone version of the algorithm"
+echo "used in gk-up.sh"
+
 source ./gk-config.sh
 
 HOSTS=($(gcloud compute instances list --regexp=$GK_NODE_NAME.* | awk 'NR>1{ printf "%-30s%s\n", $1, $4}'))

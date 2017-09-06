@@ -6,7 +6,7 @@ set -euo pipefail
 
 REPO_ROOT="$(realpath $(dirname $0)/../../)"
 STARTUP_SCRIPT="${REPO_ROOT}/deploy/vm/do-startup.sh"
-source $REPO_ROOT/deploy/cluster/lib/gk-config.sh
+source $REPO_ROOT/deploy/cluster/lib/config.sh
 echo "-- Gluster-Kubernetes --"
 echo \
 "This script will deploy a kubernetes cluster with $GK_NUM_NODES nodes and prepare them for
@@ -203,6 +203,7 @@ for node in "${GK_NODE_ARR[@]}"; do
 	gcloud compute ssh $node --command="${join_cmd}"
 done
 # Build Gluster-Kubernetes Topology File:
+echo "-- Generating gluster-kubernetes topology.json"
 HEKETI_NODE_TEMPLATE=$( cat <<EOF
         {
           "node": {
@@ -251,9 +252,9 @@ cat <<EOF > $TOPOLOGY_FILE
 EOF
 
 # Deploy Gluster
-set -x
+echo "-- Sending topology to $GK_MASTER_NAME:/tmp/"
 gcloud compute scp $TOPOLOGY_FILE root@$GK_MASTER_NAME:/tmp/
-gcloud compute ssh $GK_MASTER_NAME --command="$(find /root/ -type f -wholename "*deploy/gk-deploy") -gvy --no-block --object-account=$GCP_USER --object-user=$GCP_USER --object-password=$GCP_USER /tmp/topology.json"
-set +x
+echo "-- Running gk-deploy.sh on $GK_MASTER_NAME"
+gcloud compute ssh $GK_MASTER_NAME --command="\$(find /root/ -type f -wholename "*deploy/gk-deploy") -gvy --no-block --object-account=$GCP_USER --object-user=$GCP_USER --object-password=$GCP_USER /tmp/topology.json"
 echo "-- Cluster Deployed!"
 printf "To connect:\n\n\tgcloud compute ssh $GK_MASTER_NAME\n\n"
