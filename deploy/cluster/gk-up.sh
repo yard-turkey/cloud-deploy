@@ -52,7 +52,7 @@ while : ; do
 		then
 			break
 	else
-		if (( attempt > attempt_max )); then
+		if (( attempt >= attempt_max )); then
 			echo "-- Failed to create instance template after $attempt_max retries."
 			exit 1
 		fi
@@ -69,7 +69,7 @@ while : ; do
 		GK_NODE_ARR=($(gcloud compute instance-groups managed list-instances $GK_NODE_NAME --zone=$GCP_ZONE | awk 'NR>1{print $1}'))
 		break
 	else
-		if (( attempt > attempt_max )); then
+		if (( attempt >= attempt_max )); then
 			echo "-- Failed to create instance group $GK_NODE_NAME after $attempt_max retries."
 			exit 1
 		fi
@@ -100,8 +100,8 @@ while :; do
 	if gcloud compute disks create "${GFS_BLK_ARR[@]}" --size=$GLUSTER_DISK_SIZE --zone=$GCP_ZONE; then
 		break
 	else
-		if (( attempt > attempt_max )); then
-			echo "-- Failed to create gfs disk ${GFS_BLK_ARR[$i]} after $attempt_max retries."
+		if (( attempt >= attempt_max )); then
+			echo "-- Failed to create gfs disks ${GFS_BLK_ARR[@]} after $attempt_max retries."
 			exit 1
 		fi
 		echo "-- Failed to create gfs disks. Retrying."
@@ -119,7 +119,7 @@ for (( i=0; i < ${#GFS_BLK_ARR[@]}; i++ )); do
 			gcloud compute instances set-disk-auto-delete ${GK_NODE_ARR[$i]} --disk=${GFS_BLK_ARR[$i]} --zone=$GCP_ZONE); then
 			break
 		else
-			if (( attempt > attempt_max )); then
+			if (( attempt >= attempt_max )); then
 				echo "-- Failed to attach disk ${GFS_BLK_ARR[$i]} to ${GK_NODE_ARR[$i]}"
 				exit 1
 			fi
@@ -148,7 +148,7 @@ while :; do
 		--metadata-from-file="startup-script"=$STARTUP_SCRIPT; then
 		break
 	else
-		if (( attempt > attempt_max )); then
+		if (( attempt >= attempt_max )); then
 			echo "-- Failed to create instance $GK_MASTER_NAME after $attempt_max retries."
 			exit 1
 		fi
@@ -160,7 +160,7 @@ echo "-- Updating hosts file on master."
 HOSTS=($(gcloud compute instances list --regexp=$GK_NODE_NAME.* | awk 'NR>1{ printf "%-30s%s\n", $1, $4}'))
 attempt=1
 while ! gcloud compute ssh $GK_MASTER_NAME --command="echo \"${HOSTS}\" >> /etc/hosts"; do
-	if (( attempt > attempt_max )); then
+	if (( attempt >= attempt_max )); then
 		echo  "-- Failed to update master's /etc/hosts file.  Do so manually with \`gcloud compute instances list --regexp=$GCP_USER.*\` to get internal IPs.\\r"
 	fi
 	echo -ne "-- Attempt $attempt to update /etc/hosts file failed.  Retrying.\\r"
