@@ -4,12 +4,12 @@ set -euo pipefail
 REPO_ROOT="$(realpath $(dirname $0)/../../)"
 REPO_LIB="$REPO_ROOT/deploy/cluster/lib"
 STARTUP_SCRIPT="${REPO_ROOT}/deploy/vm/do-startup.sh"
+RETRY_MAX=5
 source $REPO_ROOT/deploy/cluster/lib/config.sh
 source $REPO_ROOT/deploy/cluster/lib/util.sh
 
 __pretty_print "" "Gluster-Kubernetes" "/"
 __print_config
-RETRY_MAX=5
 
 # Give the user a moment to confirm the configuration.
 DO_CONFIG_REVIEW=true
@@ -31,6 +31,7 @@ fi
 echo \
 "This script will deploy a kubernetes cluster with $GK_NUM_NODES nodes and prepare them for
 testing gluster-kubernetes and object storage."
+
 echo "-- Verifying gcloud."
 if ! gcloud --version &> /dev/null; then
 	echo "-- Failed to execute gcloud --version."
@@ -259,6 +260,7 @@ util::exec_with_retry "gcloud compute scp $TOPOLOGY_PATH root@$GK_MASTER_NAME:/t
 #done
 # Deploying Gluster-Kubernetes
 echo "-- Running gk-deploy.sh on $GK_MASTER_NAME"
+util::exec_with_retry "gcloud compute scp $TOPOLOGY_PATH root@$GK_MASTER_NAME:/tmp/" $RETRY_MAX
 util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME --command=\"\$(find /root/ -type f -wholename \"*deploy/gk-deploy\") -gvy --no-block --object-account=$GCP_USER --object-user=$GCP_USER --object-password=$GCP_USER /tmp/topology.json\"" $RETRY_MAX
 #attempt=0
 #while : ; do 
