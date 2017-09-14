@@ -26,33 +26,46 @@ MASTER_BOOT_DISK_SIZE=${MASTER_BOOT_DISK_SIZE:-$BOOT_DISK_SIZE}
 NODE_BOOT_DISK_SIZE=${NODE_BOOT_DISK_SIZE:-$BOOT_DISK_SIZE}
 GLUSTER_DISK_SIZE=${NODE_GLUSTER_DISK_SIZE:-$BOOT_DISK_SIZE}
 
-echo \
- "-- Cluster Config --
-GCP_USER=$GCP_USER
-GK_NUM_NODES=$GK_NUM_NODES
-GK_MASTER_NAME=$GK_MASTER_NAME
-GCP_ZONE=$GCP_ZONE
-GCP_REGION=$GCP_REGION
-GCP_NETWORK=$GCP_NETWORK
-GCP_PROJECT=$GCP_PROJECT
-CLUSTER_OS_IMAGE_PROJECT=$CLUSTER_OS_IMAGE_PROJECT
-CLUSTER_OS_IMAGE=$CLUSTER_OS_IMAGE
+function __print_config {
+	local key="${1:-}"
+	local val="${2:-}"
+	local padchar="${3:-.}"
+	local table_width=50
+	local max_width=80
+	local fill=$(printf "%s" $(for ((i=0; i<max_width; ++i)); do printf "$padchar"; done )) 
+	printf "%s%*.*s%s\n" "$key" 0 $(( $table_width - ${#key} - ${#val} )) "$fill" "$val"
+}
 
-# HARDWARE PRESETS
-MACHINE_TYPE=$MACHINE_TYPE
-BOOT_DISK_TYPE=$BOOT_DISK_TYPE
-BOOT_DISK_SIZE=$BOOT_DISK_SIZE
+__print_config "CLUSTER CONFIGURATION" "" "/"
+__print_config "GCP_USER"					"$GCP_USER"
+__print_config "GK_NUM_NODES"				"$GK_NUM_NODES"
+__print_config "GK_MASTER_NAME"				"$GK_MASTER_NAME"
+__print_config "GCP_REGION"					"$GCP_REGION"
+__print_config "GCP_ZONE"					"$GCP_ZONE"
+__print_config "GCP_NETWORK"				"$GCP_NETWORK"
+__print_config "GCP_PROJECT"				"$GCP_PROJECT"
+__print_config "CLUSTER_OS_IMAGE_PROJECT"	"$CLUSTER_OS_IMAGE_PROJECT"
+__print_config "CLUSTER_OS_IMAGE"			"$CLUSTER_OS_IMAGE"
+printf "\n"
+__print_config "HARDWARE PRESETS" 
+__print_config "MACHINE_TYPE"				"$MACHINE_TYPE"
+__print_config "BOOT_DISK_TYPE"				"$BOOT_DISK_TYPE"
+__print_config "BOOT_DISK_SIZE"				"$BOOT_DISK_SIZE"
 
-## MACHINE_TYPEs
-MASTER_MACHINE_TYPE=$MASTER_MACHINE_TYPE
-NODE_MACHINE_TYPE=$NODE_MACHINE_TYPE
+printf "\n"
+__print_config "MACHINE_TYPE(s)"
+__print_config "MASTER_MACHINE_TYPE"		"$MASTER_MACHINE_TYPE"
+__print_config "NODE_MACHINE_TYPE"			"$NODE_MACHINE_TYPE"
 
-## DISK_TYPEs
-MASTER_BOOT_DISK_TYPE=$MASTER_BOOT_DISK_TYPE
-NODE_BOOT_DISK_TYPE=$NODE_BOOT_DISK_TYPE
+printf "\n"
+__print_config "DISK_TYPE(s)"
+__print_config "MASTER_BOOT_DISK_TYPE"		"$MASTER_BOOT_DISK_TYPE"
+__print_config "NODE_BOOT_DISK_TYPE"		"$NODE_BOOT_DISK_TYPE"
 
-## DISK_SIZEs
-MASTER_BOOT_DISK_SIZE=$MASTER_BOOT_DISK_SIZE
-NODE_BOOT_DISK_SIZE=$NODE_BOOT_DISK_SIZE
-GLUSTER_DISK_SIZE=$GLUSTER_DISK_SIZE
------------------------" \
+printf "\n"
+__print_config "DISK_SIZE(s)"
+__print_config "MASTER_BOOT_DISK_SIZE"		"$MASTER_BOOT_DISK_SIZE"
+__print_config "NODE_BOOT_DISK_SIZE"		"$NODE_BOOT_DISK_SIZE"
+__print_config "GLUSTER_DISK_SIZE"			"$GLUSTER_DISK_SIZE"
+__print_config "" "" "\\"
+printf "\n"

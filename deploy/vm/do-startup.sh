@@ -7,7 +7,6 @@ LOG_FILE=${ROOT}/start-script.log
 SUCCESS_FILE=${ROOT}/__SUCCESS
 KUBE_JOIN_FILE=/tmp/kube_join
 NEXT_STEPS_FILE=${ROOT}/next_steps
-GOPATH=$ROOT/go
 set -eo pipefail
 
 if [ $(id -u) != 0  ]; then
@@ -32,6 +31,9 @@ setenforce 0
 echo "-- Configuring SSH"
 sed -i 's#PermitRootLogin no#PermitRootLogin yes#' /etc/ssh/sshd_config
 systemctl restart sshd
+
+# Updating yum certs
+yum -y upgrade ca-certificates --disablerepo=epel 
 
 # Docker
 echo "-- Installing Docker"
@@ -80,7 +82,6 @@ if [[ $(hostname -s) = *"master"* ]]; then
 	cat <<EOF >>/root/.bashrc
 source /root/.kube/completion
 alias kc=kubectl
-export GOPATH=$GOPATH
 EOF
 	# Reload bash_profile
 	source .bash_profile
@@ -93,17 +94,15 @@ EOF
 	# git
 	echo "-- Installing git"
 	yum install git -y -q -e 0
-	
-	# demo service-catalog repo
-	echo "-- Installing demo service-catalog repo"
-	export SCPATH=$GOPATH/src/github.com/kubernetes-incubator
-	echo "export SCPATH=$SCPATH" >> $ROOT/.bash_profile
-	mkdir -p $SCPATH
-	git clone https://github.com/copejon/service-catalog.git $SCPATH/service-catalog &>/dev/null
+
+	# download cns-object-broker 
+	echo "-- Installing cns-object-broker repo"
+	git clone https://github.com/copejon/cns-object-broker.git
 	
 	# Gluster-Kubernetes
 	echo "-- Getting gluster-kubernetes (s3 and block)"
-	curl -sSL https://github.com/jarrpa/gluster-kubernetes/archive/block-and-s3.tar.gz | tar -xz
+	curl -sSL https://github.com/copejon/gluster-kubernetes/archive/block-and-s3-sed-fix.tar.gz | tar -xz
+	#curl -sSL https://github.com/jarrpa/gluster-kubernetes/archive/block-and-s3.tar.gz | tar -xz
 
 	# s3Curl
 	echo "-- Installing s3curl"
@@ -144,6 +143,12 @@ EOF
 	
 	echo "Cordoning master kubelet"
 	kubectl cordon $(kubectl get nodes | grep 'master' | awk '{print $1}')
+
+	echo "Adding kube-system cluster role binding"
+	kubectl create clusterrolebinding --clusterrole=cluster-admin --serviceaccount=kube-system:default cluster-addon
+
+	echo "Deploying helm"
+	helm init
 
 	# write next (manual) steps to next_steps file
 	cat <<EOF >>$NEXT_STEPS_FILE
