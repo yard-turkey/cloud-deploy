@@ -26,33 +26,48 @@ MASTER_BOOT_DISK_SIZE=${MASTER_BOOT_DISK_SIZE:-$BOOT_DISK_SIZE}
 NODE_BOOT_DISK_SIZE=${NODE_BOOT_DISK_SIZE:-$BOOT_DISK_SIZE}
 GLUSTER_DISK_SIZE=${NODE_GLUSTER_DISK_SIZE:-$BOOT_DISK_SIZE}
 
-echo \
- "-- Cluster Config --
-GCP_USER=$GCP_USER
-GK_NUM_NODES=$GK_NUM_NODES
-GK_MASTER_NAME=$GK_MASTER_NAME
-GCP_ZONE=$GCP_ZONE
-GCP_REGION=$GCP_REGION
-GCP_NETWORK=$GCP_NETWORK
-GCP_PROJECT=$GCP_PROJECT
-CLUSTER_OS_IMAGE_PROJECT=$CLUSTER_OS_IMAGE_PROJECT
-CLUSTER_OS_IMAGE=$CLUSTER_OS_IMAGE
+function __pretty_print {
+	local key="${1:-}"
+	local val="${2:-}"
+	local padchar="${3:-.}"
+	local table_width=50
+	local max_width=80
+	local fill=$(printf "%s" $(for ((i=0; i<max_width; ++i)); do printf "$padchar"; done )) 
+	printf "%s%*.*s%s\n" "$key" 0 $(( $table_width - ${#key} - ${#val} )) "$fill" "$val"
+}
 
-# HARDWARE PRESETS
-MACHINE_TYPE=$MACHINE_TYPE
-BOOT_DISK_TYPE=$BOOT_DISK_TYPE
-BOOT_DISK_SIZE=$BOOT_DISK_SIZE
+function __print_config {
+	__pretty_print "CLUSTER CONFIGURATION" "" "/"
+	__pretty_print "GCP_USER"					"$GCP_USER"
+	__pretty_print "GK_NUM_NODES"				"$GK_NUM_NODES"
+	__pretty_print "GK_MASTER_NAME"				"$GK_MASTER_NAME"
+	__pretty_print "GCP_REGION"					"$GCP_REGION"
+	__pretty_print "GCP_ZONE"					"$GCP_ZONE"
+	__pretty_print "GCP_NETWORK"				"$GCP_NETWORK"
+	__pretty_print "GCP_PROJECT"				"$GCP_PROJECT"
+	__pretty_print "CLUSTER_OS_IMAGE_PROJECT"	"$CLUSTER_OS_IMAGE_PROJECT"
+	__pretty_print "CLUSTER_OS_IMAGE"			"$CLUSTER_OS_IMAGE"
+	printf "\n"
+	__pretty_print "HARDWARE PRESETS" 
+	__pretty_print "MACHINE_TYPE"				"$MACHINE_TYPE"
+	__pretty_print "BOOT_DISK_TYPE"				"$BOOT_DISK_TYPE"
+	__pretty_print "BOOT_DISK_SIZE"				"$BOOT_DISK_SIZE"
 
-## MACHINE_TYPEs
-MASTER_MACHINE_TYPE=$MASTER_MACHINE_TYPE
-NODE_MACHINE_TYPE=$NODE_MACHINE_TYPE
+	printf "\n"
+	__pretty_print "MACHINE_TYPE(s)"
+	__pretty_print "MASTER_MACHINE_TYPE"		"$MASTER_MACHINE_TYPE"
+	__pretty_print "NODE_MACHINE_TYPE"			"$NODE_MACHINE_TYPE"
 
-## DISK_TYPEs
-MASTER_BOOT_DISK_TYPE=$MASTER_BOOT_DISK_TYPE
-NODE_BOOT_DISK_TYPE=$NODE_BOOT_DISK_TYPE
+	printf "\n"
+	__pretty_print "DISK_TYPE(s)"
+	__pretty_print "MASTER_BOOT_DISK_TYPE"		"$MASTER_BOOT_DISK_TYPE"
+	__pretty_print "NODE_BOOT_DISK_TYPE"		"$NODE_BOOT_DISK_TYPE"
 
-## DISK_SIZEs
-MASTER_BOOT_DISK_SIZE=$MASTER_BOOT_DISK_SIZE
-NODE_BOOT_DISK_SIZE=$NODE_BOOT_DISK_SIZE
-GLUSTER_DISK_SIZE=$GLUSTER_DISK_SIZE
------------------------" \
+	printf "\n"
+	__pretty_print "DISK_SIZE(s)"
+	__pretty_print "MASTER_BOOT_DISK_SIZE"		"$MASTER_BOOT_DISK_SIZE"
+	__pretty_print "NODE_BOOT_DISK_SIZE"		"$NODE_BOOT_DISK_SIZE"
+	__pretty_print "GLUSTER_DISK_SIZE"			"$GLUSTER_DISK_SIZE"
+	__pretty_print "" "" "\\"
+	printf "\n"
+}

@@ -1,13 +1,14 @@
 #! /bin/bash
-
-#TODO Once all nodes READY/RUNNING, do gk-deploy
-
 set -euo pipefail
 
 REPO_ROOT="$(realpath $(dirname $0)/../../)"
 STARTUP_SCRIPT="${REPO_ROOT}/deploy/vm/do-startup.sh"
 source $REPO_ROOT/deploy/cluster/lib/config.sh
-echo "-- Gluster-Kubernetes --"
+source $REPO_ROOT/deploy/cluster/lib/util.sh
+
+__pretty_print "" "Gluster-Kubernetes" "/"
+__print_config
+
 echo \
 "This script will deploy a kubernetes cluster with $GK_NUM_NODES nodes and prepare them for
 testing gluster-kubernetes and object storage."
@@ -253,8 +254,13 @@ EOF
 
 # Deploy Gluster
 echo "-- Sending topology to $GK_MASTER_NAME:/tmp/"
-gcloud compute scp $TOPOLOGY_FILE root@$GK_MASTER_NAME:/tmp/
+gcloud compute scp --zone="$GCP_ZONE" $TOPOLOGY_FILE root@$GK_MASTER_NAME:/tmp/
 echo "-- Running gk-deploy.sh on $GK_MASTER_NAME"
-gcloud compute ssh $GK_MASTER_NAME --command="\$(find /root/ -type f -wholename "*deploy/gk-deploy") -gvy --no-block --object-account=$GCP_USER --object-user=$GCP_USER --object-password=$GCP_USER /tmp/topology.json"
+gcloud compute ssh $GK_MASTER_NAME --zone="$GCP_ZONE" --command="\$(find /root/ -type f -wholename "*deploy/gk-deploy") -gvy --no-block --object-account=$GCP_USER --object-user=$GCP_USER --object-password=$GCP_USER /tmp/topology.json"
+gcloud compute ssh $GK_MASTER_NAME --zone="$GCP_ZONE" --command="kubectl expose deployment gluster-s3-deployment --port=8080 --type=NodePort"
+BROKER_PORT=$(gcloud compute ssh $GK_MASTER_NAME --command="kubectl get svc gluster-s3-deployment -o jsonpath={.\"spec\".\"ports\"[0].\"nodePort\"}")
+MASTER_IP=$(gcloud compute instances list --zones="$GCP_ZONE" --filter=jcope-gk-master | awk 'NR>1{print $5}')
 echo "-- Cluster Deployed!"
-printf "To connect:\n\n\tgcloud compute ssh $GK_MASTER_NAME\n\n"
+printf "To ssh:\n\n  gcloud compute ssh $GK_MASTER_NAME\n\n"
+printf "Deploy the service-catalog broker with: "
+printf "    CNS-Broker URL: %s\n\n"  "http://$MASTER_IP:$BROKER_PORT"
