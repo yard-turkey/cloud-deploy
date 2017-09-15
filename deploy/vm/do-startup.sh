@@ -158,14 +158,6 @@ Perfom the following manual steps on the master node:
   # For any additional kubernetes nodes, run (from node):
   $KUBE_JOIN_CMD
 
-  # config the topology file:
-  cp ${ROOT}/gluster-kubernetes-block-and-s3/deploy/topology.json.sample ${ROOT}/gluster-kubernetes-block-and-s3/deploy/topology.json
-  # edit topology to contain hostname, ip and /dev/sdb devices from each node
-
-  #run gk-deploy:
-  cd ${ROOT}/gluster-kubernetes-block-and-s3/deploy
-  ./gk-deploy topology.json -gvy --object-account=$GCP_USER --object-user=$GCP_USER --object-password=$GCP_USER --no-block
-
   # find gluster-s3 service endpoint
   kubectl get svc gluster-s3-service  #(cluster-ip:port)
   # modify s3-curl/s3curl.pl script: my @endpoints = ( '<above-IP (no-port)>', )
