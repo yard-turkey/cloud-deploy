@@ -8,6 +8,24 @@ source $REPO_ROOT/deploy/cluster/lib/util.sh
 
 __pretty_print "" "Gluster-Kubernetes" "/"
 __print_config
+RETRY_MAX=5
+
+# Give the user a moment to confirm the configuration.
+DO_CONFIG_REVIEW=true
+while getopts yY o; do
+	case "$o" in
+	y|Y)
+		DO_CONFIG_REVIEW=false
+		;;
+	[?])
+		echo "Usage: -y or -Y to skip config review."
+		;;
+	esac
+done
+if $DO_CONFIG_REVIEW; then
+	read -rsn 1 -p "Please take a moment to review the configuration. Press any key to continue..."
+	printf "\n\n"
+fi
 
 echo \
 "This script will deploy a kubernetes cluster with $GK_NUM_NODES nodes and prepare them for
@@ -262,5 +280,5 @@ BROKER_PORT=$(gcloud compute ssh $GK_MASTER_NAME --command="kubectl get svc glus
 MASTER_IP=$(gcloud compute instances list --zones="$GCP_ZONE" --filter=jcope-gk-master | awk 'NR>1{print $5}')
 echo "-- Cluster Deployed!"
 printf "To ssh:\n\n  gcloud compute ssh $GK_MASTER_NAME\n\n"
-printf "Deploy the service-catalog broker with: "
-printf "    CNS-Broker URL: %s\n\n"  "http://$MASTER_IP:$BROKER_PORT"
+printf "Deploy the service-catalog broker with:\n\n"
+printf "    CNS-Broker URL: %s"  "http://$MASTER_IP:$BROKER_PORT"
