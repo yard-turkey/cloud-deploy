@@ -114,7 +114,7 @@ done
 # Create GFS disks
 echo "-- Creating GFS block devices: ${GFS_BLK_ARR[@]}"
 attempt=1
-while :; do
+while : ; do
 	echo "-- Attempt $attempt to create gfs disks ${GFS_BLK_ARR[@]}. Max retries: $attempt_max"
 	if gcloud compute disks create "${GFS_BLK_ARR[@]}" --size=$GLUSTER_DISK_SIZE --zone=$GCP_ZONE; then
 		break
@@ -159,7 +159,7 @@ else
 fi
 echo "-- Creating master instance: $GK_MASTER_NAME"
 attempt=1
-while :; do
+while : ; do
 	if gcloud compute instances create $GK_MASTER_NAME --boot-disk-auto-delete \
 		--boot-disk-size=$NODE_BOOT_DISK_SIZE --boot-disk-type=$NODE_BOOT_DISK_TYPE \
 		--image-project=$CLUSTER_OS_IMAGE_PROJECT --machine-type=$MASTER_MACHINE_TYPE \
@@ -272,13 +272,61 @@ EOF
 
 # Deploy Gluster
 echo "-- Sending topology to $GK_MASTER_NAME:/tmp/"
-gcloud compute scp --zone="$GCP_ZONE" $TOPOLOGY_FILE root@$GK_MASTER_NAME:/tmp/
+attempt=1
+while : ; do
+	if gcloud compute scp --zone="$GCP_ZONE" $TOPOLOGY_FILE root@$GK_MASTER_NAME:/tmp/; then
+		break
+	else
+		if (( attempt >= RETRY_MAX )); then
+			echo "Failed to send topology file after $attempt attempts."
+			exit 1
+		fi
+	fi
+	(( ++attempt ))
+done
+# Deploying Gluster-Kubernetes
 echo "-- Running gk-deploy.sh on $GK_MASTER_NAME"
-gcloud compute ssh $GK_MASTER_NAME --zone="$GCP_ZONE" --command="\$(find /root/ -type f -wholename "*deploy/gk-deploy") -gvy --no-block --object-account=$GCP_USER --object-user=$GCP_USER --object-password=$GCP_USER /tmp/topology.json"
-gcloud compute ssh $GK_MASTER_NAME --zone="$GCP_ZONE" --command="kubectl expose deployment gluster-s3-deployment --port=8080 --type=NodePort"
-BROKER_PORT=$(gcloud compute ssh $GK_MASTER_NAME --command="kubectl get svc gluster-s3-deployment -o jsonpath={.\"spec\".\"ports\"[0].\"nodePort\"}")
+attempt=0
+while : ; do 
+	if gcloud compute ssh $GK_MASTER_NAME --zone="$GCP_ZONE" --command="\$(find /root/ -type f -wholename "*deploy/gk-deploy") -gvy --no-block --object-account=$GCP_USER --object-user=$GCP_USER --object-password=$GCP_USER /tmp/topology.json"; then
+		break
+	else
+		if (( attempt >= RETRY_MAX )); then
+			echo "Failed to start gluster-kubernetes via SSH at $attempt attempts."
+			exit 1
+		fi
+	fi
+	(( ++attempt ))
+done
+# Expose gluster s3
+attempt=0
+while : ; do
+	if gcloud compute ssh $GK_MASTER_NAME --zone="$GCP_ZONE" --command="kubectl expose deployment gluster-s3-deployment --port=8080 --type=NodePort"; then
+		break
+	else
+		if (( attempt >= RETRY_MAX )); then
+			echo "-- Failed to expose gluster-s3-deployment after $attempt attempts."
+			exit 1
+		fi
+	fi
+	(( ++attempt ))
+done
+# Install CNS Broker
+echo "-- Deploying CNS Object Broker"
+attempt=0
+while : ; do
+	if gcloud compute ssh $GK_MASTER_NAME --zone="$GCP_ZONE" --command="helm install cns-object-broker/chart --name broker --namespace broker"; then
+		break
+	else
+		if (( attempt >= RETRY_MAX )); then
+			echo "Failed to deploy cns-object-broker after $attempt attempts."
+			exit 1
+		fi
+	fi
+done
+BROKER_PORT=$(gcloud compute ssh $GK_MASTER_NAME --command="kubectl get svc -n broker broker-cns-object-broker-node-port -o jsonpath={.\"spec\".\"ports\"[0].\"nodePort\"}")
 MASTER_IP=$(gcloud compute instances list --zones="$GCP_ZONE" --filter=jcope-gk-master | awk 'NR>1{print $5}')
 echo "-- Cluster Deployed!"
 printf "To ssh:\n\n  gcloud compute ssh $GK_MASTER_NAME\n\n"
 printf "Deploy the service-catalog broker with:\n\n"
-printf "    CNS-Broker URL: %s"  "http://$MASTER_IP:$BROKER_PORT"
+printf "    CNS-Broker URL: %s\n\n"  "http://$MASTER_IP:$BROKER_PORT"
