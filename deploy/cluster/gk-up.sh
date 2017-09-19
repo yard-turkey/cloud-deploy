@@ -61,49 +61,18 @@ fi
 # Create new template
 echo "-- Creating instance template: $GK_TEMPLATE."
 util::exec_with_retry "gcloud compute instance-templates create "${GK_TEMPLATE}" \
---image=$CLUSTER_OS_IMAGE --image-project=$CLUSTER_OS_IMAGE_PROJECT	\
---machine-type=$MACHINE_TYPE --network=$GCP_NETWORK \
---subnet=$GCP_NETWORK --region=$GCP_REGION  \
---boot-disk-auto-delete --boot-disk-size=$NODE_BOOT_DISK_SIZE \
---boot-disk-type=$NODE_BOOT_DISK_TYPE --metadata-from-file=\"startup-script\"=$STARTUP_SCRIPT" $RETRY_MAX
+	--image=$CLUSTER_OS_IMAGE --image-project=$CLUSTER_OS_IMAGE_PROJECT \
+	--machine-type=$MACHINE_TYPE --network=$GCP_NETWORK \
+	--subnet=$GCP_NETWORK --region=$GCP_REGION  \
+	--boot-disk-auto-delete --boot-disk-size=$NODE_BOOT_DISK_SIZE \
+	--boot-disk-type=$NODE_BOOT_DISK_TYPE --metadata-from-file=\"startup-script\"=$STARTUP_SCRIPT" \
+	$RETRY_MAX
  
-#while : ; do
-#	echo "-- Attempt $attempt to create instance template $GK_TEMPLATE.  Max retries: $attempt_max"
-#	if gcloud compute instance-templates create "${GK_TEMPLATE}" \
-#	--image=$CLUSTER_OS_IMAGE --image-project=$CLUSTER_OS_IMAGE_PROJECT	\
-#	--machine-type=$MACHINE_TYPE --network=$GCP_NETWORK \
-#	--subnet=$GCP_NETWORK --region=$GCP_REGION  \
-#	--boot-disk-auto-delete --boot-disk-size=$NODE_BOOT_DISK_SIZE \
-#	--boot-disk-type=$NODE_BOOT_DISK_TYPE --metadata-from-file="startup-script"=$STARTUP_SCRIPT;
-#		then
-#			break
-#	else
-#		if (( attempt >= attempt_max )); then
-#			echo "-- Failed to create instance template after $attempt_max retries."
-#			exit 1
-#		fi
-#		echo "-- Failed to create instance template $GK_TEMPLATE, retrying."
-#		(( ++attempt ))
-#	fi
-#done
 # Create new group
 echo "-- Creating instance group: $GK_NODE_NAME."
 #attempt=1
-util::exec_with_retry "gcloud compute instance-groups managed create $GK_NODE_NAME --zone=$GCP_ZONE --template=$GK_TEMPLATE --size=$GK_NUM_NODES" $RETRY_MAX
-#while : ; do
-#	echo "-- Attempt $attempt to create instance groups $GK_NODE_NAME.  Max retries: $attempt_max"
-#	if gcloud compute instance-groups managed create $GK_NODE_NAME --zone=$GCP_ZONE --template=$GK_TEMPLATE --size=$GK_NUM_NODES; then
-#		GK_NODE_ARR=($(gcloud compute instance-groups managed list-instances $GK_NODE_NAME --zone=$GCP_ZONE | awk 'NR>1{print $1}'))
-#		break
-#	else
-#		if (( attempt >= attempt_max )); then
-#			echo "-- Failed to create instance group $GK_NODE_NAME after $attempt_max retries."
-#			exit 1
-#		fi
-#		echo "-- Failed to create instance group $GK_NODE_NAME, retrying."
-#		(( ++attempt ))
-#	fi
-#done
+util::exec_with_retry "gcloud compute instance-groups managed create $GK_NODE_NAME --zone=$GCP_ZONE \
+	--template=$GK_TEMPLATE --size=$GK_NUM_NODES" $RETRY_MAX
 # Clean up old RHGS disks
 GK_NODE_ARR=($(gcloud compute instance-groups managed list-instances $GK_NODE_NAME --zone=$GCP_ZONE | awk 'NR>1{print $1}' | tr '\n' ' '))
 DISK_PREFIX="$GCP_USER-rhgs"
@@ -139,22 +108,10 @@ done
 echo "-- Attaching GFS disks to nodes."
 for (( i=0; i < ${#GFS_BLK_ARR[@]}; i++ )); do
 	# Make several attach attempts per disk.
-#	attempt=1
-	util::exec_with_retry "gcloud compute instances attach-disk ${GK_NODE_ARR[$i]} --disk=${OBJ_STORAGE_ARR[$i]} --zone=$GCP_ZONE" $RETRY_MAX
-	util::exec_with_retry "gcloud compute instances set-disk-auto-delete ${GK_NODE_ARR[$i]} --disk=${OBJ_STORAGE_ARR[$i]} --zone=$GCP_ZONE" $RETRY_MAX
-#	while :; do
-#		echo "-- Attempt $attempt to attach disk ${RHGS_BLK_ARR[$i]} to ${GK_NODE_ARR[$i]}"
-#		if	$( gcloud compute instances attach-disk ${GK_NODE_ARR[$i]} --disk=${RHGS_BLK_ARR[$i]} --zone=$GCP_ZONE && \
-#			gcloud compute instances set-disk-auto-delete ${GK_NODE_ARR[$i]} --disk=${RHGS_BLK_ARR[$i]} --zone=$GCP_ZONE); then
-#			break
-#		else
-#			if (( attempt >= attempt_max )); then
-#				echo "-- Failed to attach disk ${RHGS_BLK_ARR[$i]} to ${GK_NODE_ARR[$i]}"
-#				exit 1
-#			fi
-#			echo "-- Failed to attach disk ${RHGS_BLK_ARR[$i]} to ${GK_NODE_ARR[$i]}.  Retrying"
-#		fi
-#	done
+	util::exec_with_retry "gcloud compute instances attach-disk ${GK_NODE_ARR[$i]} \
+		--disk=${OBJ_STORAGE_ARR[$i]} --zone=$GCP_ZONE" $RETRY_MAX
+	util::exec_with_retry "gcloud compute instances set-disk-auto-delete ${GK_NODE_ARR[$i]} \
+		--disk=${OBJ_STORAGE_ARR[$i]} --zone=$GCP_ZONE" $RETRY_MAX
 done
 # Create master Instance
 echo "-- Looking for old master instance: $GK_MASTER_NAME."
@@ -187,56 +144,31 @@ done
 # Update nodes' hosts file
 echo "-- Updating hosts file on master."
 HOSTS=($(gcloud compute instances list --regexp=$GK_NODE_NAME.* | awk 'NR>1{ printf "%-30s%s\n", $1, $4}'))
-util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME --command=\"echo \"${HOSTS[@]}\" >> /etc/hosts\"" $RETRY_MAX
-#attempt=1
-#while ! gcloud compute ssh $GK_MASTER_NAME --command="echo \"${HOSTS}\" >> /etc/hosts"; do
-#	if (( attempt >= attempt_max )); then
-#		echo  "-- Failed to update master's /etc/hosts file.  Do so manually with \`gcloud compute instances list --regexp=$GCP_USER.*\` to get internal IPs.\\r"
-#	fi
-#	echo -ne "-- Attempt $attempt to update /etc/hosts file failed.  Retrying.\\r"
-#	(( ++attempt ))
-#done
+util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME \
+	--command='printf \"%s  %s\n\" ${HOSTS[*]} >>/etc/hosts'" $RETRY_MAX
 
 # Waiting for startup script to complete.
 echo "-- Waiting for start up scripts to complete on $GK_MASTER_NAME."
-util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME --command=\"cat /root/__SUCCESS &>/dev/null\""
-#attempt=1
-#while ! gcloud compute ssh $GK_MASTER_NAME --command="cat /root/__SUCCESS &>/dev/null"; do
-#	echo -ne "-- Attempt $attempt to check /root/__SUCCESS file on $GK_MASTER_NAME.\\r"
-#	if (( attempt > 100  )); then
-#		echo "-- Timeout waiting for $GK_MASTER_NAME start script to complete."
-#		echo "-- Latest log:"
-#		gcloud compute ssh $GK_MASTER_NAME --command="cat /root/start-script.log"
-#		exit 1
-#	fi
-#	(( ++attempt ))
-#	sleep 1
-#done
+util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME \
+	--command='ls /root/__SUCCESS'" 50
 echo "-- Script complete!!"
 # Attach kube minions to master.
 echo "-- Attaching minions to kube master." 
 #attempt=1
-token=$(gcloud compute ssh $GK_MASTER_NAME --command="kubeadm token list" | awk 'NR>1{print $1}')
+token="$(gcloud compute ssh $GK_MASTER_NAME --command="kubeadm token list" | awk 'NR>1{print $1}')"
 master_internal_ip=$(gcloud compute instances list $GK_MASTER_NAME | awk 'NR>1{print $4}')
 join_cmd="kubeadm join --token $token $master_internal_ip:6443"
 for node in "${GK_NODE_ARR[@]}"; do
-	util::exec_with_retry "gcloud compute ssh $node --command=\"cat /root/__SUCCESS &>/dev/null"\" $RETRY_MAX
-#	while ! gcloud compute ssh $node --command="cat /root/__SUCCESS &>/dev/null"; do
-#		echo "-- Attempt $attempt. Waiting for node $node start script to finish.."
-#		if (( attempt > 30 )); then
-#			echo "-- Timeout waiting for start up on node $node."
-#			exit 1
-#		fi
-#		(( ++attempt ))
-#		sleep 1
-#	done
+	echo "-- Waiting for start up scripts to complete on node $node."
+	util::exec_with_retry "gcloud compute ssh $node \
+		--command=\"cat /root/__SUCCESS &>/dev/null"\" $RETRY_MAX
 	# Attach kubelet to master
 	echo "-- Executing '$join_cmd' on node $node."
-	util::exec_with_retry "gcloud compute ssh $node --command=\"${join_cmd}\""
+	util::exec_with_retry "gcloud compute ssh $node --command=\"${join_cmd}\"" $RETRY_MAX
 done
 # Build Gluster-Kubernetes Topology File:
 echo "-- Generating gluster-kubernetes topology.json"
-TOPOLOGY_PATH=util::gen_gk_topology "${HOSTS[@]}"
+TOPOLOGY_PATH="$(util::gen_gk_topology ${HOSTS[*]})"
 # Deploy Gluster
 echo "-- Sending topology to $GK_MASTER_NAME:/tmp/"
 attempt=1
