@@ -123,7 +123,7 @@ util::exec_with_retry "gcloud compute instances create $GK_MASTER_NAME --boot-di
 # Update nodes' hosts file
 echo "-- Updating hosts file on master."
 HOSTS=($(gcloud compute instances list --filter=$GK_NODE_NAME \
-	--format="value(name,networkInterfaces[0].accessConfigs[0].natIP)"))
+	--format="value(name,networkInterfaces[0].networkIP)"))
 	#note: HOSTS format is: (name ext-ip name ext-ip name ext-ip....) in pairs
 util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME \
 	--command='printf \"%s  %s\n\" ${HOSTS[*]} >>/etc/hosts'" $RETRY_MAX
@@ -175,7 +175,7 @@ fi
 
 # Expose gluster s3
 util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME --zone=$GCP_ZONE \
-	--command='kubectl expose deployment gluster'" $RETRY_MAX
+	--command='kubectl expose deployment gluster-s3-deployment'" $RETRY_MAX
 # Install CNS Broke
 echo "-- Deploying CNS Object Broker"
 util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME --zone=$GCP_ZONE \
@@ -185,7 +185,7 @@ BROKER_PORT=$(gcloud compute ssh $GK_MASTER_NAME \
 	--command="kubectl get svc -n broker broker-cns-object-broker-node-port \
 	  -o jsonpath={.'spec'.'ports'[0].'nodePort'}")
 MASTER_IP=$(gcloud compute instances list --filter="zone:($GCP_ZONE) name:($GK_MASTER_NAME)" \
-	--format="value(networkInterfaces[0].accessConfigs[0].natIP)"))
+	--format="value(networkInterfaces[0].accessConfigs[0].natIP)")
 echo "-- Cluster Deployed!"
 printf "   To ssh:\n\n  gcloud compute ssh $GK_MASTER_NAME\n\n"
 printf "   Deploy the service-catalog broker with:\n\n"
