@@ -79,7 +79,7 @@ function util::exec_with_retry {
 	echo "-- $cmd (max attempts: $max_attempts)"
 	until eval "$cmd"; do
 		((attempt+=1))
-		if (( attempt >= max_attempts )); then
+		if (( attempt > max_attempts )); then
 			echo "Command \"$cmd\" failed after $max_attempts attempts."
 			return 1
 		fi
@@ -98,23 +98,23 @@ function util::exec_with_retry {
 # Return (echo) path to topology.json
 function util::gen_gk_topology {
 	local storage_nodes=($@)  # convert to array
-	local heketi_node_template=$( cat <<EOF
-		{
-		  "node": {
-			"hostnames": {
-			  "manage": [
-				"NODE_NAME"
-			  ],
-			  "storage": [
-				"NODE_IP"
-			  ]
-			},
-			"zone": 1
-		  },
-		  "devices": [
-			"/dev/sdb"
-		  ]
-	} 
+	local heketi_node_template=$(cat <<EOF
+        {
+          "node": {
+            "hostnames": {
+              "manage": [
+                "NODE_NAME"
+              ],
+              "storage": [
+                "NODE_IP"
+              ]
+            },
+            "zone": 1
+          },
+          "devices": [
+            "/dev/sdb"
+          ]
+        } 
 EOF
 	)
 	local gfs_nodes=""
@@ -124,22 +124,21 @@ EOF
 		(( i ==  hosts_size - 2 )) && dtr=""  # last pair
 		local node_name="${HOSTS[$i]}"
 		local node_ip="${HOSTS[$i+1]}"
-		# TODO still getting trailing comma after list
 		gfs_nodes=$(printf "%s\n%s%s" "$gfs_nodes" "$(sed -e "s/NODE_NAME/$node_name/" -e "s/NODE_IP/$node_ip/" <<<"$heketi_node_template")" "$dtr") 
 	done
 	local TEMP_DIR="$REPO_ROOT/.tmp-$RANDOM-$$"
 	mkdir $TEMP_DIR
 	local TOPOLOGY_FILE="$TEMP_DIR/topology.json"
-	cat <<EOF > $TOPOLOGY_FILE
+	cat <<EOF >$TOPOLOGY_FILE
 {
   "clusters": [
-	{
-	  "nodes": [
-		$gfs_nodes 
-	  ]
-	}
+    {
+      "nodes": [
+        $gfs_nodes
+      ]
+    }
   ]
-} 
+}
 EOF
 	echo "$TOPOLOGY_FILE"
 }
