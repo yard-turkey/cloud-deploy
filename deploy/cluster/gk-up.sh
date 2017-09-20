@@ -175,7 +175,7 @@ fi
 
 # Expose gluster s3
 util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME --zone=$GCP_ZONE \
-	--command='kubectl expose deployment gluster-s3-deployment'" $RETRY_MAX
+	--command='kubectl expose deployment gluster-s3-deployment --type=NodePort --port=8080'" $RETRY_MAX
 # Install CNS Broke
 echo "-- Deploying CNS Object Broker"
 util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME --zone=$GCP_ZONE \
