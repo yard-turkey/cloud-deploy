@@ -5,10 +5,15 @@
 set -euo pipefail
 
 REPO_ROOT="$(realpath $(dirname $0)/../../)"
-REPO_LIB="$REPO_ROOT/deploy/cluster/lib"
 STARTUP_SCRIPT="${REPO_ROOT}/deploy/vm/do-startup.sh"
-DO_CONFIG_REVIEW=true
 RETRY_MAX=5
+source $REPO_ROOT/deploy/cluster/lib/config.sh
+source $REPO_ROOT/deploy/cluster/lib/util.sh
+
+__pretty_print "" "Gluster-Kubernetes" "/"
+__print_config
+
+DO_CONFIG_REVIEW=true
 while getopts yY o; do
 	case "$o" in
 		y|Y)
@@ -20,18 +25,13 @@ while getopts yY o; do
 	esac
 done
 
-source $REPO_LIB/config.sh
-source $REPO_LIB/util.sh
-
+echo "This script will deploy a kubernetes cluster with $GK_NUM_NODES nodes and prepare them for 
+testing gluster-kubernetes and object storage."
 if $DO_CONFIG_REVIEW; then
 	read -rsn 1 -p "Please take a moment to review the configuration. Press any key to continue..."
 	printf "\n\n"	
 fi
 
-echo "-- Gluster-Kubernetes --"
-echo \
-"This script will deploy a kubernetes cluster with $GK_NUM_NODES nodes and prepare them for
-testing gluster-kubernetes and object storage."
 echo "-- Verifying gcloud."
 if ! gcloud --version &> /dev/null; then
 	echo "-- Failed to execute gcloud --version."
@@ -58,6 +58,7 @@ if gcloud compute instance-templates describe $GK_TEMPLATE &>/dev/null; then
 else
 	echo "-- No pre-existing template found."
 fi
+
 # Create new template
 echo "-- Creating instance template: $GK_TEMPLATE."
 util::exec_with_retry "gcloud compute instance-templates create "${GK_TEMPLATE}" \
@@ -67,11 +68,12 @@ util::exec_with_retry "gcloud compute instance-templates create "${GK_TEMPLATE}"
 	--boot-disk-auto-delete --boot-disk-size=$NODE_BOOT_DISK_SIZE \
 	--boot-disk-type=$NODE_BOOT_DISK_TYPE --metadata-from-file=\"startup-script\"=$STARTUP_SCRIPT" \
 	$RETRY_MAX
- 
+
 # Create new group
 echo "-- Creating instance group: $GK_NODE_NAME."
 util::exec_with_retry "gcloud compute instance-groups managed create $GK_NODE_NAME --zone=$GCP_ZONE \
 	--template=$GK_TEMPLATE --size=$GK_NUM_NODES" $RETRY_MAX
+
 # Clean up old RHGS disks
 GK_NODE_ARR=($(gcloud compute instance-groups managed list-instances $GK_NODE_NAME --zone=$GCP_ZONE | awk 'NR>1{print $1}' | tr '\n' ' '))
 DISK_PREFIX="$GCP_USER-rhgs"
@@ -91,6 +93,7 @@ done
 echo "-- Creating RHGS block devices: ${OBJ_STORAGE_ARR[@]}"
 util::exec_with_retry "gcloud compute disks create ${OBJ_STORAGE_ARR[*]} \
 	--size=$GLUSTER_DISK_SIZE --zone=$GCP_ZONE" $RETRY_MAX
+
 # Attach RHGS Block Devices to nodes
 echo "-- Attaching RHGS disks to nodes."
 for (( i=0; i < ${#OBJ_STORAGE_ARR[@]}; i++ )); do
@@ -169,6 +172,7 @@ if (( $? != 0 )); then
 	echo "-- Failed to run $gk_deploy on master $GK_MASTER_NAME"
 	exit 1
 fi
+
 # Expose gluster s3
 util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME --zone=$GCP_ZONE \
 	--command='kubectl expose deployment gluster'" $RETRY_MAX
@@ -186,4 +190,3 @@ echo "-- Cluster Deployed!"
 printf "   To ssh:\n\n  gcloud compute ssh $GK_MASTER_NAME\n\n"
 printf "   Deploy the service-catalog broker with:\n\n"
 printf "     CNS-Broker URL: %s\n\n"  "http://$MASTER_IP:$BROKER_PORT"
-printf "-- Topology file can be found at $TOPOLOGY_PATH"  \
