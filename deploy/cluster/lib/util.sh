@@ -73,11 +73,72 @@ function util::do-cleanup {
 #	$1) cmd to exec
 #	$2) Max Retries
 function util::exec_with_retry {
-	local cmd=$1
-	local max_retry=$2
-	local time_limite=300 # seconds
+	local cmd="$1"
+	local max_attempts=$2
+	local attempt=0
+	echo "-- $cmd (max attempts: $max_attempts)"
+	until eval "$cmd"; do
+		((attempt+=1))
+		if (( attempt > max_attempts )); then
+			echo "Command \"$cmd\" failed after $max_attempts attempts."
+			return 1
+		fi
+		sleep 3
+		echo "-- $attempt of $max_attempts: $cmd"
+	done
+	return 0
 }
 
-
-
-
+# util::gen_gk_topology
+# Creates topology.json consumable by gk-deploy.sh
+# Stores the file in $REPO_ROOT/.tmp-$RANDOM-$$
+# Args:
+#	$@= storage_nodes. A list of hostnames and ips, eg:
+#	    host1  ip1  host2  ip2  host3  ip3 ...
+# Return (echo) path to topology.json
+function util::gen_gk_topology {
+	local storage_nodes=($@)  # convert to array
+	local heketi_node_template=$(cat <<EOF
+        {
+          "node": {
+            "hostnames": {
+              "manage": [
+                "NODE_NAME"
+              ],
+              "storage": [
+                "NODE_IP"
+              ]
+            },
+            "zone": 1
+          },
+          "devices": [
+            "/dev/sdb"
+          ]
+        } 
+EOF
+	)
+	local gfs_nodes=""
+	local hosts_size=${#HOSTS[@]}
+	local dtr=","
+	for (( i=0; i < hosts_size-1; i+=2 )); do
+		(( i ==  hosts_size - 2 )) && dtr=""  # last pair
+		local node_name="${HOSTS[$i]}"
+		local node_ip="${HOSTS[$i+1]}"
+		gfs_nodes=$(printf "%s\n%s%s" "$gfs_nodes" "$(sed -e "s/NODE_NAME/$node_name/" -e "s/NODE_IP/$node_ip/" <<<"$heketi_node_template")" "$dtr") 
+	done
+	local TEMP_DIR="$REPO_ROOT/.tmp-$RANDOM-$$"
+	mkdir $TEMP_DIR
+	local TOPOLOGY_FILE="$TEMP_DIR/topology.json"
+	cat <<EOF >$TOPOLOGY_FILE
+{
+  "clusters": [
+    {
+      "nodes": [
+        $gfs_nodes
+      ]
+    }
+  ]
+}
+EOF
+	echo "$TOPOLOGY_FILE"
+}
