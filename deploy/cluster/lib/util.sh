@@ -93,8 +93,8 @@ function util::exec_with_retry {
 # Creates topology.json consumable by gk-deploy.sh
 # Stores the file in $REPO_ROOT/.tmp-$RANDOM-$$
 # Args:
-#	$@= storage_nodes. A list of hostnames and ips, eg:
-#	    host1  ip1  host2  ip2  host3  ip3 ...
+#	$@= storage_nodes. A list of internal-ips and hostnames, eg:
+#	    ip1 host1 ip2 host2 ...
 # Return (echo) path to topology.json
 function util::gen_gk_topology {
 	local storage_nodes=($@)  # convert to array
@@ -122,8 +122,8 @@ EOF
 	local dtr=","
 	for (( i=0; i < hosts_size-1; i+=2 )); do
 		(( i ==  hosts_size - 2 )) && dtr=""  # last pair
-		local node_name="${HOSTS[$i]}"
-		local node_ip="${HOSTS[$i+1]}"
+		local node_ip="${HOSTS[$i]}"
+		local node_name="${HOSTS[$i+1]}"
 		gfs_nodes=$(printf "%s\n%s%s" "$gfs_nodes" "$(sed -e "s/NODE_NAME/$node_name/" -e "s/NODE_IP/$node_ip/" <<<"$heketi_node_template")" "$dtr") 
 	done
 	local TEMP_DIR="$REPO_ROOT/.tmp-$RANDOM-$$"
