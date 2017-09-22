@@ -10,7 +10,7 @@ GCP_ZONE=${GCP_ZONE:-"$(gcloud config get-value compute/zone 2>/dev/null)"}
 GCP_PROJECT=${PROJECT:-"$(gcloud config get-value project)"}
 CLUSTER_OS_IMAGE_PROJECT=${CLUSTER_OS_IMAGE_PROJECT:-"rhel-cloud"}
 CLUSTER_OS_IMAGE=${CLUSTER_OS_IMAGE:-"rhel-7-v20170930"}
-GCP_NETWORK=${GCP_NETWORK:-"gluster-kubernetes"}  # TODO create network using $USER-gluster-kubernetes as name.
+GCP_NETWORK=${GCP_NETWORK:-"$GCP_USER-gluster-kubernetes"}  # TODO create network using $USER-gluster-kubernetes as name.
 # HARDWARE PRESETS
 MACHINE_TYPE=${MACHINE_TYPE:-"n1-standard-1"}
 BOOT_DISK_TYPE=${BOOT_DISK_TYPE:-"pd-standard"}
@@ -30,10 +30,9 @@ function __pretty_print {
 	local key="${1:-}"
 	local val="${2:-}"
 	local padchar="${3:-.}"
-	local table_width=50
 	local max_width=80
 	local fill=$(printf "%s" $(for ((i=0; i<max_width; ++i)); do printf "$padchar"; done )) 
-	printf "%s%*.*s%s\n" "$key" 0 $(( $table_width - ${#key} - ${#val} )) "$fill" "$val"
+	printf "%s%*.*s%s\n" "$key" 0 $(( $max_width - ${#key} - ${#val} )) "$fill" "$val"
 }
 
 function __print_config {

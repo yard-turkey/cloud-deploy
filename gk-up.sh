@@ -69,6 +69,16 @@ function delete_templates() {
 	return 0
 }
 
+function create_network() {
+	echo "-- Looking for old firewall rules."
+	## TODO that ^
+	echo "-- Looking for old networks."
+	if gcloud compute networks describe "$GCP_NETWORK"; then
+		echo "Network \"$GCP_NETWORK\" already exists, verifying for reuse."
+		if gcloud compute 
+	fi
+}
+
 # Create new template.
 function create_template() {
 	echo "-- Creating instance template: $GK_TEMPLATE."
