@@ -1,8 +1,9 @@
 #! /bin/bash
 #
-# 'gk-up/sh' creates a gce cluster customized using a rhel 7 image with gluster, heketi, git, helm,
-# kubernetes, service-catalog, etc installed (via a separate gce start-up script). If the cluster is
-# running it will be shut-down (this script is idempotent.) A cns s3 service broker is also installed.Q
+# 'gk-up.sh', and its companion startup script 'do-startup.sh', create a gce cluster customized using a 
+# rhel 7 image with gluster, heketi, git, helm, kubernetes, service-catalog, etc installed. The startup
+# script creates a file named "/root/__SUCCESS" once it has completed. If the gce cluster is running it
+# will be shut down (this script is idempotent.) A custom cns s3 service broker is also installed.
 #
 # Args:
 #   $1= -y to bypass hitting a key to acknowlege seeing the displayed config info.
@@ -15,10 +16,12 @@ set -euo pipefail
 # Parse out -y arg if present.
 function parse_args() {
 	DO_CONFIG_REVIEW=true
-	while getopts yY o; do
+	while getopts yYnN o; do
 		case "$o" in
 		y|Y)
 			DO_CONFIG_REVIEW=false
+			;;
+		n|N)    # default
 			;;
 		[?])
 			echo "Usage: -y or -Y to skip config review."
@@ -110,7 +113,7 @@ function create_master() {
 
 # Set the internal and external ip arrays for the master node and all minions.
 # Sets: MASTER_IPS, MINION_NAMES, MINION_IPS, and HOSTS global vars.
-# Note: the MINION_IPS map is not yet referenced but remains for a future usage.
+# Note: the MINION_IPS map is not yet referenced but remains for future usage.
 function master_minions_ips() {
 	echo "-- Setting global master and minion internal and external ip addresses."
 	# format: (internal-ip external-ip)
@@ -122,7 +125,8 @@ function master_minions_ips() {
 		return 1
 	fi
 
-	# format: (hostname internal-ip external-ip...). Make a single call to gcloud
+	# Make a single call to gcloud to get all minion info
+	# format: (hostname internal-ip external-ip...)
 	local minions=($(gcloud compute instances list --filter="zone:($GCP_ZONE) name:($GK_NODE_NAME)" \
 		--format="value(name,networkInterfaces[0].networkIP,\
 		  networkInterfaces[0].accessConfigs[0].natIP)"))
@@ -134,7 +138,7 @@ function master_minions_ips() {
 	# set MINION_NAMES and HOSTS arrays, and MINION_IPS map
 	declare -A MINION_IPS=() # key=hostname, value="internal-ip external-ip"
 	HOSTS=() # format: (internal-ip minion-name internal-ip minion-name...)
-	MINION_NAMES=()
+	MINION_NAMES=() # format: (name name..)
 	size=${#minions[@]}
 	for ((i=0; i<=$size-3; i+=3 )); do
 		host="${minions[$i]}"
@@ -284,7 +288,6 @@ function install_cns-broker() {
 ## main
 ##
 
-CLI_ARGS="$@"
 REPO_ROOT="$(realpath $(dirname $0)/../../)"
 STARTUP_SCRIPT="${REPO_ROOT}/deploy/vm/do-startup.sh"
 RETRY_MAX=5
@@ -294,7 +297,7 @@ source $REPO_ROOT/deploy/cluster/lib/util.sh
 __pretty_print "" "Gluster-Kubernetes" "/"
 __print_config
 
-parse_args $CLI_ARGS || exit 1
+parse_args $@ || exit 1
 if $DO_CONFIG_REVIEW; then
 	read -rsn 1 -p "Please take a moment to review the configuration. Press any key to continue..."
 	printf "\n\n"
