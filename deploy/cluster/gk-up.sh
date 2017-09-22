@@ -284,6 +284,7 @@ function install_cns-broker() {
 ## main
 ##
 
+CLI_ARGS="$@"
 REPO_ROOT="$(realpath $(dirname $0)/../../)"
 STARTUP_SCRIPT="${REPO_ROOT}/deploy/vm/do-startup.sh"
 RETRY_MAX=5
@@ -293,7 +294,7 @@ source $REPO_ROOT/deploy/cluster/lib/util.sh
 __pretty_print "" "Gluster-Kubernetes" "/"
 __print_config
 
-parse_args || exit 1
+parse_args $CLI_ARGS || exit 1
 if $DO_CONFIG_REVIEW; then
 	read -rsn 1 -p "Please take a moment to review the configuration. Press any key to continue..."
 	printf "\n\n"
