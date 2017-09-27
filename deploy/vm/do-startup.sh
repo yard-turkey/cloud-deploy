@@ -139,7 +139,7 @@ EOF
 	sudo cp -f /etc/kubernetes/admin.conf $ROOT/.kube/config
 	sudo chown $(id -u):$(id -g) $ROOT/.kube/config
 	kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
-	kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel-rbac.yml
+	kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/master/Documentation/k8s-manifests/kube-flannel-rbac.yml
 	
 	echo "Cordoning master kubelet"
 	kubectl cordon $(kubectl get nodes | grep 'master' | awk '{print $1}')
