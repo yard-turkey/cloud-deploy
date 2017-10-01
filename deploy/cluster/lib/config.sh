@@ -9,7 +9,7 @@ GCP_REGION=${GCP_REGION:-$(gcloud config get-value compute/region 2>/dev/null)}
 GCP_ZONE=${GCP_ZONE:-"$(gcloud config get-value compute/zone 2>/dev/null)"}
 GCP_PROJECT=${PROJECT:-"$(gcloud config get-value project)"}
 CLUSTER_OS_IMAGE_PROJECT=${CLUSTER_OS_IMAGE_PROJECT:-"rhel-cloud"}
-CLUSTER_OS_IMAGE=${CLUSTER_OS_IMAGE:-"rhel-7-v20170816"}
+CLUSTER_OS_IMAGE=${CLUSTER_OS_IMAGE:-"rhel-7-v20170930"}
 GCP_NETWORK=${GCP_NETWORK:-"gluster-kubernetes"}  # TODO create network using $USER-gluster-kubernetes as name.
 # HARDWARE PRESETS
 MACHINE_TYPE=${MACHINE_TYPE:-"n1-standard-1"}
