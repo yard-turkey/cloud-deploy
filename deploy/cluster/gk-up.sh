@@ -203,7 +203,7 @@ function join_minions() {
 	echo "-- Attaching minions to kube master." 
 	local token="$(gcloud compute ssh $GK_MASTER_NAME --command='kubeadm token list' | \
 		awk 'NR>1{print $1}')"
-	local join_cmd="kubeadm join --token $token ${MASTER_IPS[0]}:6443" # internal ip
+	local join_cmd="kubeadm join --skip-preflight-checks --token $token ${MASTER_IPS[0]}:6443" # internal ip
 	for node in "${MINION_NAMES[@]}"; do
 		echo "-- Waiting for start up scripts to complete on node $node."
 		util::exec_with_retry "gcloud compute ssh $node \

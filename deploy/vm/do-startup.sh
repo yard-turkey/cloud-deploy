@@ -54,7 +54,7 @@ chmod +x ./kubectl
 mv ./kubectl /usr/bin/
 
 # Kubeadm
-echo "-- Installing kubeadm"
+echo "-- Installing kubeadm, kubelet"
 su -c "cat <<EOF > /etc/yum.repos.d/kubernetes.repo
 [kubernetes]
 name=Kubernetes
@@ -67,10 +67,10 @@ https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
 EOF"
 yum install kubelet kubeadm -y -q -e 0
 
-# Start the kubelet on minions only
+echo "-- Enabling kubelet"
 systemctl enable kubelet
+echo "-- Starting kubelet"
 systemctl start kubelet
-
 
 # Initialize the master node 
 if [[ $(hostname -s) = *"master"* ]]; then
@@ -133,7 +133,7 @@ EOF
 
 	# Kubeadm init
 	echo "-- Initializing via kubeadm..."
-	kubeadm init --pod-network-cidr=10.244.0.0/16 | tee >(sed -n '/kubeadm join --token/p' >> $KUBE_JOIN_FILE)
+	kubeadm init --pod-network-cidr=10.244.0.0/16 --skip-preflight-checks | tee >(sed -n '/kubeadm join --token/p' >> $KUBE_JOIN_FILE)
 	KUBE_JOIN_CMD=$(cat $KUBE_JOIN_FILE)
 	mkdir -p $ROOT/.kube
 	sudo cp -f /etc/kubernetes/admin.conf $ROOT/.kube/config
