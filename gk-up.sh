@@ -288,11 +288,11 @@ function install_cns-broker() {
 ## main
 ##
 
-REPO_ROOT="$(realpath $(dirname $0)/../../)"
-STARTUP_SCRIPT="${REPO_ROOT}/deploy/vm/do-startup.sh"
+REPO_ROOT="$(realpath $(dirname $0))"
+STARTUP_SCRIPT="${REPO_ROOT}/do-startup.sh"
 RETRY_MAX=5
-source $REPO_ROOT/deploy/cluster/lib/config.sh
-source $REPO_ROOT/deploy/cluster/lib/util.sh
+source ${REPO_ROOT}/lib/config.sh
+source ${REPO_ROOT}/lib/util.sh
 
 __pretty_print "" "Gluster-Kubernetes" "/"
 __print_config
