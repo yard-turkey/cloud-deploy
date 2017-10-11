@@ -1,16 +1,26 @@
 #! /bin/bash
 
+function verify-not-empty {
+	if [[ "${!1}" == "" ]]; then
+		echo "Variable $1 is not set.  Please set the value on the command line, enironment, or in gcloud config." && exit 1
+	fi
+}
+
 # Config
-GCP_USER=${GCP_USER:-"$(gcloud config get-value account 2>/dev/null | sed 's#@.*##')"}
+GCP_EMAIL=${GCP_EMAIL:-$(gcloud config get-value account 2>/dev/null)}
+verify-not-empty "GCP_EMAIL"
+GCP_USER=${GCP_USER:-$(echo $GCP_EMAIL | sed 's#@.*##')}
 GK_NUM_NODES=${GK_NUM_NODES:-3}
 GK_MASTER_NAME=${MASTER_NAME:-"$GCP_USER-gk-master"}
 GK_NODE_NAME="$GCP_USER-gk-node"
 GCP_REGION=${GCP_REGION:-$(gcloud config get-value compute/region 2>/dev/null)}
 GCP_ZONE=${GCP_ZONE:-"$(gcloud config get-value compute/zone 2>/dev/null)"}
-GCP_PROJECT=${PROJECT:-"$(gcloud config get-value project)"}
+verify-not-empty "GCP_ZONE"
+GCP_PROJECT=${PROJECT:-"$(gcloud config get-value project 2>/dev/null)"}
+verify-not-empty "GCP_PROJECT"
 CLUSTER_OS_IMAGE_PROJECT=${CLUSTER_OS_IMAGE_PROJECT:-"rhel-cloud"}
 CLUSTER_OS_IMAGE=${CLUSTER_OS_IMAGE:-"rhel-7-v20170930"}
-GCP_NETWORK=${GCP_NETWORK:-"gluster-kubernetes"}  # TODO create network using $USER-gluster-kubernetes as name.
+GCP_NETWORK=${GCP_NETWORK:-"$GCP_USER-gluster-kubernetes"}  # TODO create network using $USER-gluster-kubernetes as name.
 # HARDWARE PRESETS
 MACHINE_TYPE=${MACHINE_TYPE:-"n1-standard-1"}
 BOOT_DISK_TYPE=${BOOT_DISK_TYPE:-"pd-standard"}
@@ -30,14 +40,14 @@ function __pretty_print {
 	local key="${1:-}"
 	local val="${2:-}"
 	local padchar="${3:-.}"
-	local table_width=50
 	local max_width=80
 	local fill=$(printf "%s" $(for ((i=0; i<max_width; ++i)); do printf "$padchar"; done )) 
-	printf "%s%*.*s%s\n" "$key" 0 $(( $table_width - ${#key} - ${#val} )) "$fill" "$val"
+	printf "%s%*.*s%s\n" "$key" 0 $(( $max_width - ${#key} - ${#val} )) "$fill" "$val"
 }
 
 function __print_config {
 	__pretty_print "CLUSTER CONFIGURATION" "" "/"
+	__pretty_print "GCP_EMAIL"					"$GCP_EMAIL"
 	__pretty_print "GCP_USER"					"$GCP_USER"
 	__pretty_print "GK_NUM_NODES"				"$GK_NUM_NODES"
 	__pretty_print "GK_MASTER_NAME"				"$GK_MASTER_NAME"

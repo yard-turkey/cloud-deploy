@@ -69,6 +69,24 @@ function delete_templates() {
 	return 0
 }
 
+# Create a network for the cluster and open all ports on all protocols.
+function create_network() {
+	local fw_rule_allow_all="gluster-kubernetes-allow-all"
+	echo "-- Checking for network $GCP_NETWORK"
+	if ! gcloud compute networks describe "$GCP_NETWORK" &>/dev/null; then
+		echo "-- Network not found. Creating network now."
+		gcloud compute networks create "$GCP_NETWORK" --mode=auto || exit 1
+	else
+		echo "-- Using preconfigured network \"$GCP_NETWORK\" with firewall-rule \"$fw_rule_allow_all\"."
+	fi
+	echo "-- Checking for firewall-rule \"$fw_rule_allow_all\""
+	if ! gcloud compute firewall-rules describe "$fw_rule_allow_all" &>/dev/null; then
+		echo "-- Firewall-rule not found. Creating firewall-rule now."
+		gcloud beta compute firewall-rules create "$fw_rule_allow_all" --direction=INGRESS \
+			--network="$GCP_NETWORK" --action=ALLOW --rules=ALL --source-ranges=0.0.0.0/0 || exit 1
+	fi
+}
+
 # Create new template.
 function create_template() {
 	echo "-- Creating instance template: $GK_TEMPLATE."
@@ -308,6 +326,7 @@ testing gluster-kubernetes and object storage."
 
 verify_gcloud		|| exit 1
 delete_templates	|| exit 1
+create_network		|| exit 1
 create_template		|| exit 1
 create_group		|| exit 1
 create_master		|| exit 1
@@ -324,7 +343,7 @@ install_cns-broker	|| exit 1
 
 printf "\n-- Cluster Deployed!\n"
 printf "   To ssh:\n"
-printf "        \`gcloud compute ssh $GK_MASTER_NAME\`\n\n"
+printf "        gcloud compute ssh $GK_MASTER_NAME\n\n"
 printf "   To deploy the service-catalog broker use:\n"
 printf "        CNS-Broker URL: http://%s\n\n" ${MASTER_IPS[1]}:$BROKER_PORT
 # end...
