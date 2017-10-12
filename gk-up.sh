@@ -321,8 +321,7 @@ if $DO_CONFIG_REVIEW; then
 	printf "\n\n"
 fi
 
-printf "\nThis script deploys a kubernetes cluster with $GK_NUM_NODES nodes and prepares them\n for 
-testing gluster-kubernetes and object storage."
+printf "\nThis script deploys a kubernetes cluster with $GK_NUM_NODES nodes and prepares them for testing gluster-kubernetes and object storage.\n"
 
 verify_gcloud		|| exit 1
 delete_templates	|| exit 1
