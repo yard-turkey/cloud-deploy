@@ -71,7 +71,7 @@ function delete_templates() {
 
 # Create a network for the cluster and open all ports on all protocols.
 function create_network() {
-	local fw_rule_allow_all="gluster-kubernetes-allow-all"
+	local fw_rule_allow_all="$GCP_USER-gluster-kubernetes-allow-all"
 	echo "-- Checking for network $GCP_NETWORK"
 	if ! gcloud compute networks describe "$GCP_NETWORK" &>/dev/null; then
 		echo "-- Network not found. Creating network now."
