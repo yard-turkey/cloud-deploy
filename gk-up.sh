@@ -212,24 +212,24 @@ function create_attach_disks() {
 # Note: we wait longer for the master and nodes to be ready.
 function wait_on_master() {
 	echo "-- Waiting for start up scripts to complete on $GK_MASTER_NAME."
-	util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME \
+	util::exec_with_retry "gcloud compute ssh --zone="$GCP_ZONE" $GK_MASTER_NAME \
 		--command='ls /root/__SUCCESS 2>/dev/null'" 50
 }
 
 # Wait for the minion node startup script to complete and attach kube minions to master.
 function join_minions() {
 	echo "-- Attaching minions to kube master." 
-	local token="$(gcloud compute ssh $GK_MASTER_NAME --command='kubeadm token list' | \
+	local token="$(gcloud compute ssh --zone=$GCP_ZONE $GK_MASTER_NAME --command='kubeadm token list' | \
 		awk 'NR>1{print $1}')"
 	local join_cmd="kubeadm join --skip-preflight-checks --token $token ${MASTER_IPS[0]}:6443" # internal ip
 	for node in "${MINION_NAMES[@]}"; do
 		echo "-- Waiting for start up scripts to complete on node $node."
-		util::exec_with_retry "gcloud compute ssh $node \
+		util::exec_with_retry "gcloud compute ssh --zone=$GCP_ZONE $node \
 			--command='ls /root/__SUCCESS 2>/dev/null'" 50 \
 		|| return 1
 		# Join kubelet to master
 		echo "-- Executing '$join_cmd' on node $node."
-		util::exec_with_retry "gcloud compute ssh $node --command='${join_cmd}'" $RETRY_MAX \
+		util::exec_with_retry "gcloud compute ssh --zone=$GCP_ZONE $node --command='${join_cmd}'" $RETRY_MAX \
 		|| return 1
 	done
 	return 0
@@ -239,7 +239,7 @@ function join_minions() {
 function update_etc_hosts() {
 	echo "-- Update master's hosts file:"
 	echo "   Appending \"${HOSTS[*]}\" to $GK_MASTER_NAME's /etc/hosts."
-	gcloud compute ssh $GK_MASTER_NAME \
+	gcloud compute ssh --zone="$GCP_ZONE" $GK_MASTER_NAME \
 		--command="printf '%s  %s  # Added by gk-up\n' ${HOSTS[*]} >>/etc/hosts"
 }
 
@@ -248,10 +248,10 @@ function create_topology() {
 	echo "-- Generating gluster-kubernetes topology.json"
 	local topology_path="$(util::gen_gk_topology ${HOSTS[*]})"
 	echo "-- Sending topology to $GK_MASTER_NAME:/tmp/"
-	util::exec_with_retry "gcloud compute scp $topology_path root@$GK_MASTER_NAME:/tmp/" $RETRY_MAX \
+	util::exec_with_retry "gcloud compute scp --zone=$GCP_ZONE $topology_path root@$GK_MASTER_NAME:/tmp/" $RETRY_MAX \
 	|| return 1
 	echo "-- Finding gk-deploy.sh on $GK_MASTER_NAME"
-	GK_DEPLOY="$(gcloud compute ssh $GK_MASTER_NAME \
+	GK_DEPLOY="$(gcloud compute ssh --zone=$GCP_ZONE $GK_MASTER_NAME \
 		--command='find /root/ -type f -wholename *deploy/gk-deploy')"
 	if (( $? != 0 )) || [[ -z "$GK_DEPLOY" ]]; then
 		echo -e "-- Failed to find gk-deploy cmd on master. ssh to master and do:\n   find /root/ -type f -wholename *deploy/gk-deploy"
@@ -265,7 +265,7 @@ function run_gk_deploy() {
 	echo "-- Running gk-deploy.sh on $GK_MASTER_NAME:"
 	echo "   $GK_DEPLOY -gvy --no-block --object-account=$GCP_USER --object-user=$GCP_USER \
 	 	--object-password=$GCP_USER /tmp/topology.json"
-	gcloud compute ssh $GK_MASTER_NAME --command="$GK_DEPLOY -gvy --no-block \
+	gcloud compute ssh --zone="$GCP_ZONE" $GK_MASTER_NAME --command="$GK_DEPLOY -gvy --no-block \
 		--object-account=$GCP_USER --object-user=$GCP_USER --object-password=$GCP_USER \
 		/tmp/topology.json"
 	if (( $? != 0 )); then
@@ -277,7 +277,7 @@ function run_gk_deploy() {
 
 # Expose gluster s3.
 function expose_gluster_s3() {
-	util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME --zone=$GCP_ZONE \
+	util::exec_with_retry "gcloud compute ssh --zone="$GCP_ZONE" $GK_MASTER_NAME --zone=$GCP_ZONE \
 		--command='kubectl expose deployment gluster-s3-deployment --type=NodePort \
 		  --port=8080'" $RETRY_MAX
 }
@@ -288,11 +288,11 @@ function install_cns-broker() {
 	local ns="broker"
 	local chart="cns-object-broker/chart"
 	echo "-- Deploying CNS Object Broker"
-	util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME --zone=$GCP_ZONE \
+	util::exec_with_retry "gcloud compute ssh --zone="$GCP_ZONE" $GK_MASTER_NAME --zone=$GCP_ZONE \
 		--command='helm install $chart --name broker --namespace $ns'" \
 		$RETRY_MAX \
 	|| return 1
-	BROKER_PORT=$(gcloud compute ssh $GK_MASTER_NAME \
+	BROKER_PORT=$(gcloud compute ssh --zone="$GCP_ZONE" $GK_MASTER_NAME \
 		--command="kubectl get svc -n $ns $svc_name \
 		  -o jsonpath={.'spec'.'ports'[0].'nodePort'}")
 	if [[ -z "$BROKER_PORT" ]]; then
@@ -342,7 +342,7 @@ install_cns-broker	|| exit 1
 
 printf "\n-- Cluster Deployed!\n"
 printf "   To ssh:\n"
-printf "        gcloud compute ssh $GK_MASTER_NAME\n\n"
+printf "        gcloud compute ssh --zone="$GCP_ZONE" $GK_MASTER_NAME\n\n"
 printf "   To deploy the service-catalog broker use:\n"
 printf "        CNS-Broker URL: http://%s\n\n" ${MASTER_IPS[1]}:$BROKER_PORT
 # end...
