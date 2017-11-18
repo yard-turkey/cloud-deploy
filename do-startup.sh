@@ -5,9 +5,6 @@
 #
 # Assumptions:
 # 1) the os image is rhel/centos based, meaning systemctl and selinux exist.
-#
-# TODO:
-# 1) parse gluster-s3-ep socket.
 ###
 ROOT=/root
 LOG_FILE=${ROOT}/start-script.log
