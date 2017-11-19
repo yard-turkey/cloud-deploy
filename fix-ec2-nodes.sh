@@ -9,11 +9,13 @@
 #   - remounts the gluster volume on the previously stopped aws nodes.
 #
 # Usage:
-#	fix-ec2-nodes.sh <instance-filter>
+#	fix-ec2-nodes.sh <instance-filter> [gluster-vol-name]
 # Args:
-#	same value used as '--filter=' in the aws and gce cli.
+#	<filter> (required) same value used as '--filter=' in the aws and gce cli.
+#	<vol>    (optional) gluster volume name (no leading "/").
+#		 If there is more than one gluster vol then this value must be supplied.
 # Example:
-#	fix-ex2-nodes.sh jcope
+#	fix-ex2-nodes.sh jcope gv0
 # Assumptions:
 #	- stopped nodes are aws ec2 nodes.
 #
@@ -118,7 +120,7 @@ function get_ec2_ips() {
 }
 
 # Set global GLUSTER_VOL to the gluster volume name by ssh'ing into the passed-in gce node.
-# Note: use 'gluster vol info' since 'vol status' sometimes hangs when nodes are up and down
+# Note: using 'gluster vol info' since 'vol status' sometimes hangs when nodes are up and down
 #   frequently.
 # Assumptions:
 # - there is only 1 gluster volume.
@@ -210,6 +212,10 @@ function sanity_check() {
 	if (( size1 == 0 )); then
 		echo "error: must have at least 1 aws ec2 instance"
 		return 1
+	fi
+	if [[ "${arr1[0]}" == *None* ]]; then # logged out of aws cli seems to cause this...
+		echo "error: re-login to AWS CLI -- ec2 instances are not being found"
+		exit 1
 	fi
 	if (( !(size1 == size2 && size2 == size3 && size3 == size4) )); then
 		echo "error: expect num of aws instances ($size1), num of aws ids ($size2), num of aws ips ($size3), and num aws /etc/hosts aliases ($size4) to be the same"
@@ -316,20 +322,21 @@ cat <<END
    This script attempts to repair AWS EC2 instances which have been stopped. These
    instances are restarted, /etc/hosts on all nodes in the cluster is updated to
    reflect the new ips for the started AWS instances, and the gluster volume is 
-   remounted on the AWS nodes.
+   remounted on the AWS nodes. The gluster volumne name must be specified if there
+   is more than one gluster volume in the cluster; otherwise it is optional.
 
-   Usage: $0 <simple-filter-string>  eg. $0 jcope
+   Usage: $0 <instance-filter> [gluster-vol]  eg. $0 jcope gv0
 
 END
+sleep 2
 
+AWS_SSH_USER='centos'
 FILTER="$1"
 if [[ -z "$FILTER" ]]; then
 	echo "Missing required filter value"
 	exit 1
 fi
-sleep 3
-
-AWS_SSH_USER='centos'
+GLUSTER_VOL="$2" # optional
 
 # get gce instance names (as a global var)
 GCE_NAMES=''; GCE_ZONES=''
@@ -338,7 +345,6 @@ GCE_NODE="$(cut -f1 -d' ' <<<"$GCE_NAMES")"
 GCE_ZONE="$(cut -f1 -d' ' <<<"$GCE_ZONES")"
 
 # get aws ids, dns names and original IPs (as global vars)
-# TODO: can I get this info if the node is stopped??
 AWS_IDS=''; AWS_NAMES=''
 get_aws_info $FILTER || exit 1
 
@@ -349,9 +355,10 @@ start_aws_instances $AWS_IDS || exit 1
 AWS_NEW_IPS=''
 get_ec2_ips $AWS_IDS
 
-# get the gluster volume name (as global var). Expect only one volume.
-GLUSTER_VOL=''
-get_vol_name $GCE_NODE $GCE_ZONE || exit 1
+if [[ -z "$GLUSTER_VOL" ]]; then
+	# get the gluster volume name (as global var). Expect only one volume.
+	get_vol_name $GCE_NODE $GCE_ZONE || exit 1
+fi
 
 # map /etc/hosts aliases for the ec2 nodes to their new ips (as a global map)
 declare -A AWS_ALIASES=()
