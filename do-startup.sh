@@ -1,6 +1,10 @@
 #! /bin/bash
-### TODOs
-# parse gluster-s3-ep socket.
+# This script is copied to a GCE template and executed right after a node boots.
+# The main reason to separate this script from gk-up.sh (and potentially other "up"
+# scripts) is to improve bring up performance by reducing ssh calls.
+#
+# Assumptions:
+# 1) the os image is rhel/centos based, meaning systemctl and selinux exist.
 ###
 ROOT=/root
 LOG_FILE=${ROOT}/start-script.log
