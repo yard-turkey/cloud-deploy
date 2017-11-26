@@ -17,12 +17,12 @@ function make_ep_json() {
 	local ip
 	local subsets
 
-	for ip in ${INSTMAP[INT_IPS]}; do
+	for ip in ${INSTMAP[PRIVATE_IPS]}; do
 		subsets+="{'addresses':[{'ip':'$ip'}],'ports':[{'port':1}]},"
 	done
 	subsets="${subsets::-1}" # remove last comma
 	local ep
-	ep="
+	ep="\
 {
   'kind': 'Endpoints',
   'apiVersion': 'v1',
@@ -39,7 +39,7 @@ function make_ep_json() {
 
 ## main ##
 
-cat <<END
+cat <<END >&2
 
    This script outputs endpoints json based on the supplied provider and filter, suitable for
    'kubectl create -f'.  Redirect output to capture the output in a file.
@@ -67,8 +67,8 @@ if [[ -z "$FILTER" ]]; then
 	exit 1
 fi
 
-echo "   Creating endpoints json for $PROVIDER ($FILTER)..."
-echo
+echo "   Creating endpoints json for $PROVIDER ($FILTER)..." >&2
+echo >&2
 
 # source util functions based on provider
 ROOT="$(dirname '${BASH_SOURCE}')"
@@ -84,13 +84,11 @@ fi
 source $UTIL
 
 # get internal ips from provider
-rtn=$(util::get_instance_info $FILTER)
+declare -A INSTMAP=$(util::get_instance_info $FILTER PRIVATE_IPS)
 if (( $? != 0 )); then
 	echo "failed to get $PROVIDER instance info:" >&2
-	echo $rtn >&2
 	exit 1
 fi
-declare -A INSTMAP=$rtn
 
 # create endpoint json
 json="$(make_ep_json)"
