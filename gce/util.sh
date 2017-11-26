@@ -1,9 +1,10 @@
 #!/bin/bash
 #
-# GCE specific utility (helper) functions. Expected to live in the "gce/" directory.
+# GCE specific utility (helper) functions. Expected to live in the "gce/" directory. Function names must
+# be prefixed with "util::".
+
 # All providers are expected to support the following functions:
 #	util::get_instance_info
-#	util::xyzzy
 #
 
 # util::get_instance_info: based on the passed in instance-filter and optional key(s), return a map
