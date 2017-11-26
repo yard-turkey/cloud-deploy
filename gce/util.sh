@@ -6,41 +6,76 @@
 #	util::xyzzy
 #
 
-# util::get_instance_info: based on the passed in instance-filter, return a map (as a string)
-# which includes the following keys:
-#	NAMES   - list of instance dns names
-#	IDS     - list of ids (empty for gce)
-#	ZONES   - list of gce zones
-#	IPS_EXT - list of external (public) ips
-#	IPS_INT - list of cluster internal ips
+# util::get_instance_info: based on the passed in instance-filter and optional key(s), return a map
+# (as a string) which includes one of more of the following keys:
+#	NAMES       - list of instance dns names
+#	ZONES       - list of zones
+#	PRIVATE_IPS - list of cluster internal ips
+#	PUBLIC_IPS  - list of external ips
+# Args: 1=instance-filter (required), 2+=zero or more map keys separated by spaces. If no key is
+#       provided then all key values are returned.
 # Note: caller should 'declare -A map_var' before assigning to this function's return. Eg:
 #	declare -A map=$(util::get_instance_info $filter)
 #
 function util::get_instance_info() {
-	readonly filter="$1"
-	readonly format='value(name,zone,networkInterfaces[].networkIP,networkInterfaces[].accessConfigs[0].natIP)'
-	local info
+	local filter="$1"
+	shift; local keys=($@) # array
+	local query='value('
 
-	info="$(gcloud compute instances list --filter="$filter" --format="$format")"
+	(( ${#keys[@]} == 0 )) && keys=(NAMES ZONES PRIVATE_IPS PUBLIC_IPS) #all
+	local key
+	for key in ${keys[@]}; do
+		case $key in
+			NAMES)	     query+='name,';;
+			ZONES)       query+='zone,';;
+			PRIVATE_IPS) query+='networkInterfaces[].networkIP,';;
+			PUBLIC_IPS)  query+='networkInterfaces[].accessConfigs[0].natIP,';;
+			*)	     echo "Unknown gce info key: $key" >&2; return 1;;
+		esac
+	done
+	query="${query::-1}" # remove last comma
+	query+=')'
+	
+	# retrieve gce instance info
+	local info=()
+	info=($(gcloud compute instances list --filter="$filter" --format="$query"))
 	if (( $? != 0 )); then
-		echo "error: failed to get gce info (NAMES, ZONES, IPs)" >&2
+		echo "error: failed to get gce info for keys: $keys" >&2
 		return 1
 	fi
-	if [[ -z "$info" ]]; then
-		echo "error: retrieved gce info is empty" >&2
+	if (( ${#info[@]}  == 0 )); then
+		echo "error: retrieved gce info is empty, keys: $keys" >&2
 		return 1
 	fi
-	# parse info into lists
-	local rec; local names; local zones; local int_ips; local ext_ips
-	while IFS= read -r rec; do
-		names+="$(awk '{print $1}' <<<"$rec") "
-		zones+="$(awk '{print $2}' <<<"$rec") "
-		int_ips+="$(awk '{print $3}' <<<"$rec") "
-		ext_ips+="$(awk '{print $4}' <<<"$rec") "
-	done <<<"$info"
-	local map
-	map="([NAMES]='$names', [IDS]='', [ZONES]='$zones', [INT_IPS]='$int_ips', [EXT_IPS]='$ext_ips')"
-	echo "$map"
+	# parse info results into separate lists
+	local i; local j; local names; local zones; local private_ips; local public_ips; local value
+	for ((i=0; i<${#info[@]}; )); do
+		for key in ${keys[@]}; do
+			value="${info[$i]}"
+			case $key in
+				NAMES)       names+="$value ";;
+				ZONES)       zones+="$value ";;
+				PRIVATE_IPS) private_ips+="$value ";;
+				PUBLIC_IPS)  public_ips+="$value ";;
+			esac	
+			((i++))
+		done
+	done
+
+	# construct map
+	local map='('
+	for key in ${keys[@]}; do
+		map+="[$key]="
+		case $key in
+			NAMES)       map+="'$names', ";;
+			ZONES)       map+="'$zones', ";;
+			PRIVATE_IPS) map+="'$private_ips', ";;
+			PUBLIC_IPS)  map+="'$public_ips', ";;
+		esac
+	done
+	map="${map::-2}" # remove last ", "
+        map+=')'
+	echo "$map" # return json string
 	return 0
 }
 
