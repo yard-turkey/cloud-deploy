@@ -4,6 +4,7 @@
 # be prefixed with "util::".
 # All providers are expected to support the following functions:
 #	util::get_instance_info
+#	util::copy_file
 #
 
 # util::get_instance_info: based on the passed in instance-filter and optional key(s), return a map
@@ -79,3 +80,34 @@ function util::get_instance_info() {
 	return 0
 }
 
+# util::copy_file: use scp to copy the passed-in source file to the supplied target file on the
+# passed-in instance names. Returns 1 on errors.
+# Args:
+#   1=name of source file (on local host)
+#   2=name of destination file (on instance)
+#   3=list of instance names (quoted).
+#
+function util::copy_file() {
+	readonly src="$1"; readonly tgt="$2"; readonly instances="$3"
+	readonly aws_user='centos'
+
+	if [[ ! -f "$src" ]]; then
+		echo "Source (from) file missing: \"$src\"" >&2
+		return 1
+	fi
+	if [[ -z "$instances" ]]; then
+		echo "Instance names missing" >&2
+		return 1
+	fi
+
+	local inst; local err
+	for inst in $instances; do
+		scp $src $aws_user@$inst:$tgt
+		err=$?
+		if (( err != 0 )); then
+			echo "scp error: failed to scp $src to $inst: $err" >&2
+			return 1
+		fi
+	done
+	return 0
+}

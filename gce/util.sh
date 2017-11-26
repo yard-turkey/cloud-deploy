@@ -5,6 +5,7 @@
 
 # All providers are expected to support the following functions:
 #	util::get_instance_info
+#	util::copy_file
 #
 
 # util::get_instance_info: based on the passed in instance-filter and optional key(s), return a map
@@ -41,11 +42,11 @@ function util::get_instance_info() {
 	local info=()
 	info=($(gcloud compute instances list --filter="$filter" --format="$query"))
 	if (( $? != 0 )); then
-		echo "error: failed to get gce info for keys: $keys" >&2
+		echo "error: failed to get gce info for keys: ${keys[@]}" >&2
 		return 1
 	fi
 	if (( ${#info[@]}  == 0 )); then
-		echo "error: retrieved gce info is empty, keys: $keys" >&2
+		echo "error: retrieved gce info is empty, keys: ${keys[@]}" >&2
 		return 1
 	fi
 	# parse info results into separate lists
@@ -79,4 +80,41 @@ function util::get_instance_info() {
 	echo "$map" # return json string
 	return 0
 }
+# util::copy_file: use 'gcloud compute scp' to copy the passed-in source file to the
+# supplied target file on the passed-in instance names. Returns 1 on errors.
+# Args:
+#   1=name of source file (on local host)
+#   2=name of destination file (on instance)
+#   3=list of instance names, quoted
+#   4=list of zones, quoted.
+#
+function util::copy_file() {
+        readonly src="$1"; readonly tgt="$2"
+	readonly instances="$3"; readonly zones=($4) # instances and zones must be paired
 
+        if [[ ! -f "$src" ]]; then
+                echo "Source (from) file missing: \"$src\"" >&2
+                return 1
+        fi
+        if [[ -z "$instances" ]]; then
+                echo "Instance names missing" >&2
+                return 1
+        fi
+        if [[ -z "$zones" ]]; then
+                echo "Zones names missing" >&2
+                return 1
+        fi
+
+        local inst; local zone; local err; local i=0
+        for inst in $instances; do
+		zone="${zones[$i]}"
+                gcloud compute scp $src $inst:$tgt --zone=$zone
+                err=$?
+                if (( err != 0 )); then
+                        echo "gcloud compute error: failed to scp $src to $inst/$zone: $err" >&2
+                        return 1
+                fi
+		((i++))
+        done
+        return 0
+}
