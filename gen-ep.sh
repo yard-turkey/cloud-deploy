@@ -50,16 +50,11 @@ cat <<END >&2
 
 END
 
+# source util funcs based on provider
+source init.sh || exit 1
+
 PROVIDER="$1"
-if [[ -z "$PROVIDER" ]]; then
-	echo "Missing required cloud-provider value" >&2
-	exit 1
-fi
-PROVIDER="$(tr '[:upper:]' '[:lower:]' <<<"$PROVIDER")"
-case $PROVIDER in
-	aws|gce) ;;
-	*) echo "Provider must be either aws or gce" >&2; exit 1 ;;
-esac
+init::load_provider $PROVIDER || exit 1
 
 FILTER="$2"
 if [[ -z "$FILTER" ]]; then
@@ -69,19 +64,6 @@ fi
 
 echo "   Creating endpoints json for $PROVIDER ($FILTER)..." >&2
 echo >&2
-
-# source util functions based on provider
-ROOT="$(dirname '${BASH_SOURCE}')"
-if [[ ! -d "$ROOT/$PROVIDER" ]]; then
-	echo "Missing $PROVIDER directory under $ROOT" >&2
-	exit 1
-fi
-UTIL="$ROOT/$PROVIDER/util.sh"
-if [[ ! -f "$UTIL" ]]; then
-	echo "Missing $UTIL" >&2
-	exit 1
-fi
-source $UTIL
 
 # get internal ips from provider
 declare -A INSTMAP=$(util::get_instance_info $FILTER PRIVATE_IPS)
