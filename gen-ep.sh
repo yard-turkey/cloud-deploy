@@ -11,7 +11,6 @@
 # Example:
 #	./gen-ep.sh gce jcope >gluster-ep.json
 #	./gen-ep.sh aws jcope --scp
-#
 
 
 # Parse script options. Non-option arguments are parsed my the main script block.
@@ -78,7 +77,8 @@ cat <<END >&2
 END
 
 # source util funcs based on provider
-source init.sh || exit 1
+ROOT="$(dirname '${BASH_SOURCE}')"
+source $ROOT/init.sh || exit 1
 
 parse_options "$@" || exit 1
 

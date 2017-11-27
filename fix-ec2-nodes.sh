@@ -20,63 +20,6 @@
 #	- stopped nodes are aws ec2 nodes.
 #
 
-# Sets globals GCE_NAMES and GCE_ZONES such that 'gcloud compute ssh' works.
-function get_gce_info() {
-	local filter="$1"
-	local info
-
-	echo "*** collecting gce instance info based on filter=$filter..."
-	info="$(gcloud compute instances list --filter="$filter" --format='value(name,zone)')"
-	if (( $? != 0 )); then
-		echo "error: failed to get list of gce node names"
-		return 1
-	fi
-	if [[ -z "$info" ]]; then
-		echo "error: list of gce node names is empty"
-		return 1
-	fi
-	# parse info and set global vars, format: "instance-name zone"
-	local rec
-	while IFS= read -r rec; do
-		GCE_NAMES+="$(awk '{print $1}' <<<"$rec") "
-		GCE_ZONES+="$(awk '{print $2}' <<<"$rec") "
-	done <<<"$info"
-	echo "*** success"; echo
-	return 0
-}
-
-# Sets globals for the following aws ec2 info:
-# - aws-instance-id
-# - aws-node-name.
-function get_aws_info() {
-	local filter="Name=tag:Name,Values='*$1*'"
-	local query='Reservations[*].Instances[*].[InstanceId,PublicDnsName,PublicIpAddress]'
-
-	echo "*** collecting ec2 instance info based on filter=$filter..."
-	local out
-	out="$(aws ec2 --output text describe-instances --filter $filter --query $query)"
-	if (( $? != 0 )); then
-		echo "error: failed to get aws ec2 instance info"
-		return 1
-	fi
-	if [[ -z "$out" ]]; then
-		echo "error: aws ec2 instance info is empty"
-		return 1
-	fi
-	# parse info and set global vars, format: "instance-id dns-name external-ip"
-	local rec
-	while IFS= read -r rec; do
-		AWS_IDS+="$(awk '{print $1}' <<<"$rec") "
-		AWS_NAMES+="$(awk '{print $2}' <<<"$rec") "
-	done <<<"$out"
-	if [[ -z "$AWS_IDS" || -z "$AWS_NAMES" ]]; then
-		echo -e "error: incomplete aws info:\nAWS_IDS=$AWS_IDS, AWS_NAMES=$AWS_NAMES"
-		return 1
-	fi
-	echo "*** success"; echo
-	return 0
-}
-
 # Start aws ec2 instances based on passed-in ids.
 function start_aws_instances() {
 	local ids="$@"
@@ -191,22 +134,22 @@ function sanity_check() {
 
 	echo "*** internal sanity check on gce and aws variables..."
 	# gce arrays:
-	local arr1=($GCE_NAMES); local size1=${#arr1[@]}
-	local arr2=($GCE_ZONES); local size2=${#arr2[@]}
+	local arr1=(${GCE_INFO[NAMES]}); local size1=${#arr1[@]}
+	local arr2=(${GCE_INFO[ZONES]}); local size2=${#arr2[@]}
 	if (( size1 == 0 )); then
 		echo "error: must have at least 1 gce instance"
 		return 1
 	fi
 	if (( size1 != size2 )); then
 		echo "error: expect num of gce instances ($size1) to = num of gce zones ($size2)"
-		echo "    gce-names: ${GCE_NAMES[@]}"
-		echo "    gce-zones: ${GCE_ZONES[@]}"
+		echo "    gce-names: ${arr1[@]}"
+		echo "    gce-zones: ${arr2[@]}"
 		return 1
 	fi
 
 	# aws arrays:
-	arr1=($AWS_NAMES); size1=${#arr1[@]}
-	arr2=($AWS_IDS); size2=${#arr2[@]}
+	arr1=(${AWS_INFO[NAMES]}); size1=${#arr1[@]}
+	arr2=(${AWS_INFO[IDS]});   size2=${#arr2[@]}
 	local arr3=($AWS_NEW_IPS); local size3=${#arr3[@]}
 	local size4=${#AWS_ALIASES[@]}
 	if (( size1 == 0 )); then
@@ -219,9 +162,9 @@ function sanity_check() {
 	fi
 	if (( !(size1 == size2 && size2 == size3 && size3 == size4) )); then
 		echo "error: expect num of aws instances ($size1), num of aws ids ($size2), num of aws ips ($size3), and num aws /etc/hosts aliases ($size4) to be the same"
-		echo "    aws-names  : ${AWS_NAMES[@]}"
-		echo "    aws-ids    : ${AWS_IDS[@]}"
-		echo "    aws-ips    : ${AWS_NEW_IPS[@]}"
+		echo "    aws-names  : ${arr1[@]}"
+		echo "    aws-ids    : ${arr2[@]}"
+		echo "    aws-ips    : ${arr3[@]}"
 		echo "    aws-aliases: ${!AWS_ALIASES[@]}"
 		return 1
 	fi
@@ -236,7 +179,7 @@ function sanity_check() {
 #   captured by any aws ec2 attribute AFAIK. The most important thing is to be consistent across
 #   all nodes by using the same ip with the same host alias.
 function update_etc_hosts() {
-	local zones=($GCE_ZONES) # convert to array
+	local zones=(${GCE_INFO[ZONES]}) # convert to array
 	local ec2_host_alias='aws-node'
 
 	# construct sed cmd to update /etc/hosts on gce and aws instances
@@ -248,7 +191,7 @@ function update_etc_hosts() {
 
 	echo "*** updating /etc/hosts on gce instances..."
 	local i=0; local node; local zone
-	for node in $GCE_NAMES; do
+	for node in ${GCE_INFO[NAMES]}; do
 		zone="${zones[$i]}"
 		gcloud compute ssh $node --command="$cmd" --zone=$zone
 		if (( $? != 0 )); then
@@ -260,12 +203,12 @@ function update_etc_hosts() {
 
 	echo "*** updating /etc/hosts on ec2 instances..."
 	# note: even though $cmd contains all aws aliases and the aws hosts file should contain
-	#  one less than all of the aliases, the sed command does not fail when a '-e alias' name
-	# is not found in /etc/hosts
-	for node in $AWS_NAMES; do
-		ssh $AWS_SSH_USER@$node "$cmd"
+	#   1 less than all of the aliases, the sed command does not fail when a '-e alias' name
+	#   is not found in /etc/hosts
+	for node in ${AWS_INFO[NAMES]}; do
+		ssh -t $AWS_SSH_USER@$node "$cmd"
 		if (( $? != 0 )); then
-			echo "'ssh $AWS_SSH_USER@$node $cmd' error"
+			echo "'ssh -t $AWS_SSH_USER@$node $cmd' error"
 			return 1
 		fi
 	done
@@ -300,12 +243,12 @@ function mount_vol() {
 
 	echo "*** remounting gluster volume \"$vol\" on ec2 instances..."
 	local node; local cmd; local errcnt=0; local err
-	for node in $AWS_NAMES; do
+	for node in ${AWS_INFO[NAMES]}; do
 		cmd="sudo mount -t glusterfs $node:/$vol $mntPath"
-		ssh $AWS_SSH_USER@$node "$cmd"
+		ssh -t $AWS_SSH_USER@$node "$cmd"
 		err=$?
 		if (( err != 0 && err != 32 )); then # 32==already mounted which is ok
-			echo "'ssh $AWS_SSH_USER@$node $cmd' error"
+			echo "'ssh -t $AWS_SSH_USER@$node $cmd' error"
 			((errcnt++))
 		fi
 	done
@@ -328,39 +271,52 @@ cat <<END
    Usage: $0 <instance-filter> [gluster-vol]  eg. $0 jcope gv0
 
 END
-sleep 2
+
+# source util funcs based on provider
+ROOT="$(dirname '${BASH_SOURCE}')"
+source $ROOT/init.sh || exit 1
 
 AWS_SSH_USER='centos'
 FILTER="$1"
 if [[ -z "$FILTER" ]]; then
-	echo "Missing required filter value"
+	echo "Missing required instance-filter value" >&2
 	exit 1
 fi
 GLUSTER_VOL="$2" # optional
 
-# get gce instance names (as a global var)
-GCE_NAMES=''; GCE_ZONES=''
-get_gce_info $FILTER || exit 1
-GCE_NODE="$(cut -f1 -d' ' <<<"$GCE_NAMES")"
-GCE_ZONE="$(cut -f1 -d' ' <<<"$GCE_ZONES")"
+# get gce instance info
+init::load_provider gce || exit 1
+info=$(util::get_instance_info $FILTER NAMES ZONES PUBLIC_IPS)
+if (( $? != 0 )); then
+	echo "failed to get gce instance info" >&2
+	exit 1
+fi
+declare -A GCE_INFO=$info
+GCE_NODE="$(cut -f1 -d' ' <<<"${GCE_INFO[NAMES]}")"
+GCE_ZONE="$(cut -f1 -d' ' <<<"${GCE_INFO[ZONES]}")"
 
-# get aws ids, dns names and original IPs (as global vars)
-AWS_IDS=''; AWS_NAMES=''
-get_aws_info $FILTER || exit 1
-
-# start ec2 nodes
-start_aws_instances $AWS_IDS || exit 1
-
-# get new ec2 instance ips (as a global var)
-AWS_NEW_IPS=''
-get_ec2_ips $AWS_IDS
-
+# handle omitted gluster vol
 if [[ -z "$GLUSTER_VOL" ]]; then
 	# get the gluster volume name (as global var). Expect only one volume.
 	get_vol_name $GCE_NODE $GCE_ZONE || exit 1
 fi
 
-# map /etc/hosts aliases for the ec2 nodes to their new ips (as a global map)
+# get aws instance info
+init::load_provider aws || exit 1
+info=$(util::get_instance_info $FILTER NAMES IDS) # don't get ips since instance may be stopped
+if (( $? != 0 )); then
+	echo "failed to get aws instance info" >&2
+	exit 1
+fi
+declare -A AWS_INFO=$info
+
+# start ec2 nodes
+start_aws_instances ${AWS_INFO[IDS]} || exit 1
+
+AWS_NEW_IPS=''
+get_ec2_ips ${AWS_INFO[IDS]} || exit 1
+
+# map /etc/hosts aliases for the ec2 nodes to their new ips
 declare -A AWS_ALIASES=()
 map_ec2_aliases $AWS_NEW_IPS || exit 1
 
@@ -371,7 +327,7 @@ sanity_check || exit 1
 update_etc_hosts || exit 1
 
 # wait for peer status to see new ips
-gluster_wait $GCE_NODE $GCE_ZONE $AWS_NEW_IPS || exit 1
+gluster_wait $GCE_NODE $GCE_ZONE ${AWS_INFO[PUBLIC_IPS]} || exit 1
 
 # remount gluster volume on aws nodes
 mount_vol $GLUSTER_VOL || exit 1
