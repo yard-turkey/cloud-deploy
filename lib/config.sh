@@ -6,7 +6,10 @@ function verify-not-empty {
 	fi
 }
 
-# Config
+# Gluster Config
+BRICK_SIZE=${BRICK_SIZE:-200} # in Gb
+
+# GCE Config
 GCP_EMAIL=${GCP_EMAIL:-$(gcloud config get-value account 2>/dev/null)}
 verify-not-empty "GCP_EMAIL"
 GCP_USER=${GCP_USER:-$(echo $GCP_EMAIL | sed 's#@.*##')}
@@ -34,7 +37,17 @@ NODE_BOOT_DISK_TYPE=${NODE_BOOT_DISK_TYPE:-$BOOT_DISK_TYPE}
 ## DISK_SIZEs
 MASTER_BOOT_DISK_SIZE=${MASTER_BOOT_DISK_SIZE:-$BOOT_DISK_SIZE}
 NODE_BOOT_DISK_SIZE=${NODE_BOOT_DISK_SIZE:-$BOOT_DISK_SIZE}
-GLUSTER_DISK_SIZE=${NODE_GLUSTER_DISK_SIZE:-$BOOT_DISK_SIZE}
+GLUSTER_DISK_SIZE="$BRICK_SIZE"GB
+
+
+
+# AWS Config
+INSTANCE_TYPE="t2.large"
+TAG_NODE_NAME="aws-node"
+AMI_ID="ami-2fb42b39"
+SUBNET_ID="subnet-cf57c596"
+SECGROUP_ID="sg-5875023f"
+KEY_NAME="libra"
 
 function __pretty_print {
 	local key="${1:-}"
