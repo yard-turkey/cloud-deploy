@@ -5,7 +5,22 @@
 # All providers are expected to support the following functions:
 #	util::get_instance_info
 #	util::copy_file
-#
+
+# Helpers #
+# These functions implement lower leverl operations required for deploying
+# and destroying Google Compute Engine instances.
+
+function __run_instance() {}
+
+# Generic Utilities
+# util::* functions are a set of operations that are implmented by each provider's
+# library.  Similar to an interface, they MUST be implemented for each provider
+# such that when they are called, they execute the required low level, provider
+# specific operations that result in the expected outcomue (e.g. create_instances
+# creates a set of instances in the given provider.)
+function util::create_instances() {}
+
+function util::destroy_instances() {}
 
 # util::get_instance_info: based on the passed in instance-filter and optional key(s), return a map
 # (as a string) which includes one of more of the following keys:
@@ -40,7 +55,7 @@ function util::get_instance_info() {
 	done
 	query="${query::-1}" # remove last comma
 	query+=']'
-	
+
 	# retrieve aws ec2 info
 	local info=()
 	info=($(aws ec2 --output text describe-instances --filter="$filter" --query="$query"))
@@ -62,7 +77,7 @@ function util::get_instance_info() {
 				IDS)         ids+="$value ";;
 				PRIVATE_IPS) private_ips+="$value ";;
 				PUBLIC_IPS)  public_ips+="$value ";;
-			esac	
+			esac
 			((i++))
 		done
 	done

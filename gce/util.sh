@@ -9,6 +9,37 @@
 #	util::remote_cmd
 
 
+# Helpers #
+# These functions implement lower leverl operations required for deploying
+# and destroying Google Compute Engine instances.
+function __create_instance_template() {}
+
+function __delete_instance_template() {}
+
+function __create_instance_group() {}
+
+function __delete_instance_group() {}
+
+function __init_network() {}
+
+function __init_firewall_rules() {}
+
+function __create_disk() {}
+
+function __attach_disk() {}
+
+function __set_disk_auto_delete() {}
+
+# Generic Utilities
+# util::* functions are a set of operations that are implmented by each provider's
+# library.  Similar to an interface, they MUST be implemented for each provider
+# such that when they are called, they execute the required low level, provider
+# specific operations that result in the expected outcomue (e.g. create_instances
+# creates a set of instances in the given provider.)
+function util::create_instances() {}
+
+function util::destroy_instances() {}
+
 # util::get_instance_info: based on the passed in instance-filter and optional key(s), return a map
 # (as a string) which includes one of more of the following keys:
 #	NAMES       - list of instance dns names
@@ -42,7 +73,7 @@ function util::get_instance_info() {
 	done
 	query="${query::-1}" # remove last comma
 	query+=')'
-	
+
 	# retrieve gce instance info
 	local info=()
 	info=($(gcloud compute instances list --filter="$filter" --format="$query"))
@@ -64,7 +95,7 @@ function util::get_instance_info() {
 				ZONES)       zones+="$value ";;
 				PRIVATE_IPS) private_ips+="$value ";;
 				PUBLIC_IPS)  public_ips+="$value ";;
-			esac	
+			esac
 			((i++))
 		done
 	done
@@ -94,34 +125,34 @@ function util::get_instance_info() {
 #   4=list of zones, quoted.
 #
 function util::copy_file() {
-        readonly src="$1"; readonly tgt="$2"
+	readonly src="$1"; readonly tgt="$2"
 	readonly instances="$3"; readonly zones=($4) # instances and zones must be paired
 
-        if [[ ! -f "$src" ]]; then
-                echo "Source (from) file missing: \"$src\"" >&2
-                return 1
-        fi
-        if [[ -z "$instances" ]]; then
-                echo "Instance names missing" >&2
-                return 1
-        fi
-        if [[ -z "$zones" ]]; then
-                echo "Zones names missing" >&2
-                return 1
-        fi
+	if [[ ! -f "$src" ]]; then
+		echo "Source (from) file missing: \"$src\"" >&2
+		return 1
+	fi
+	if [[ -z "$instances" ]]; then
+		echo "Instance names missing" >&2
+		return 1
+	fi
+	if [[ -z "$zones" ]]; then
+		echo "Zones names missing" >&2
+		return 1
+	fi
 
-        local inst; local zone; local err; local i=0
-        for inst in $instances; do
+	local inst; local zone; local err; local i=0
+	for inst in $instances; do
 		zone="${zones[$i]}"
-                gcloud compute scp $src $inst:$tgt --zone=$zone
-                err=$?
-                if (( err != 0 )); then
-                        echo "gcloud compute error: failed to scp $src to $inst/$zone: $err" >&2
-                        return 1
-                fi
+		gcloud compute scp $src $inst:$tgt --zone=$zone
+		err=$?
+		if (( err != 0 )); then
+			echo "gcloud compute error: failed to scp $src to $inst/$zone: $err" >&2
+			return 1
+		fi
 		((i++))
-        done
-        return 0
+	done
+	return 0
 }
 
 # util::remote_cmd: execute the passed-in command on the target instance/zone.
@@ -139,4 +170,3 @@ function util::remote_cmd() {
 	fi
 	return 0
 }
-
