@@ -68,13 +68,12 @@ function util::get_instance_info() {
 	for key in ${keys[@]}; do
 		map+="[$key]="
 		case $key in
-			NAMES)       map+="'$names', ";;
-			IDS)         map+="'$ids', ";;
-			PRIVATE_IPS) map+="'$private_ips', ";;
-			PUBLIC_IPS)  map+="'$public_ips', ";;
+			NAMES)       map+="'$names' ";;
+			IDS)         map+="'$ids' ";;
+			PRIVATE_IPS) map+="'$private_ips' ";;
+			PUBLIC_IPS)  map+="'$public_ips' ";;
 		esac
 	done
-	map="${map::-2}" # remove last ", "
         map+=')'
 	echo "$map" # return json string
 	return 0
