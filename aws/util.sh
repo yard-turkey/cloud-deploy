@@ -11,8 +11,11 @@
 # (as a string) which includes one of more of the following keys:
 #	NAMES       - list of instance dns names
 #	IDS         - list of ids
+#	ZONES       - empty for aws
 #	PRIVATE_IPS - list of cluster internal ips
 #	PUBLIC_IPS  - list of external ips
+# Note: all keys for all providers must be accepted, meaning do not cause an error, but should have
+#       an empty value if not applicable to a cloud provider.
 # Args: 1=instance-filter (required), 2+=zero or more map keys separated by spaces. If no key is
 #       provided then all key values are returned.
 # Note: caller should 'declare -A map_var' before assigning to this function's return. Eg:
@@ -31,6 +34,7 @@ function util::get_instance_info() {
 			IDS)         query+='InstanceId,';;
 			PRIVATE_IPS) query+='PrivateIpAddress,';;
 			PUBLIC_IPS)  query+='PublicIpAddress,';;
+			ZONES)	     ;; # ignore but not an error
 			*)	     echo "Unknown aws info key: $key" >&2; return 1;;
 		esac
 	done
