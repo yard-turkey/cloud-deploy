@@ -1,5 +1,9 @@
 #! /bin/bash
 
+# TODO split this file into GCE and common configs.  place GCE in gce/
+# TODO write a config file to AWS in aws/
+# TODO in common, add provider
+
 function verify-not-empty {
 	if [[ "${!1}" == "" ]]; then
 		echo "Variable $1 is not set.  Please set the value on the command line, enironment, or in gcloud config." && exit 1
@@ -54,7 +58,7 @@ function __pretty_print {
 	local val="${2:-}"
 	local padchar="${3:-.}"
 	local max_width=80
-	local fill=$(printf "%s" $(for ((i=0; i<max_width; ++i)); do printf "$padchar"; done )) 
+	local fill=$(printf "%s" $(for ((i=0; i<max_width; ++i)); do printf "$padchar"; done ))
 	printf "%s%*.*s%s\n" "$key" 0 $(( $max_width - ${#key} - ${#val} )) "$fill" "$val"
 }
 
@@ -71,7 +75,7 @@ function __print_config {
 	__pretty_print "CLUSTER_OS_IMAGE_PROJECT"	"$CLUSTER_OS_IMAGE_PROJECT"
 	__pretty_print "CLUSTER_OS_IMAGE"			"$CLUSTER_OS_IMAGE"
 	printf "\n"
-	__pretty_print "HARDWARE PRESETS" 
+	__pretty_print "HARDWARE PRESETS"
 	__pretty_print "MACHINE_TYPE"				"$MACHINE_TYPE"
 	__pretty_print "BOOT_DISK_TYPE"				"$BOOT_DISK_TYPE"
 	__pretty_print "BOOT_DISK_SIZE"				"$BOOT_DISK_SIZE"

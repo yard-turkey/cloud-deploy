@@ -9,26 +9,142 @@
 #	util::remote_cmd
 
 
+
 # Helpers #
-# These functions implement lower leverl operations required for deploying
-# and destroying Google Compute Engine instances.
-function __create_instance_template() {}
+# These functions implement lower level operations required for deploying
+# and destroying Google Compute Engine instances.  These functions should be
+# considered private, scoped to the provider.
 
-function __delete_instance_template() {}
+function __init_network() {
+	local fw_rule_allow_all="$GCP_USER-gluster-kubernetes-allow-all"
+	echo "-- Checking for network $GCP_NETWORK"
+	if ! gcloud compute networks describe "$GCP_NETWORK" &>/dev/null; then
+		echo "-- Network not found. Creating network now."
+		gcloud compute networks create "$GCP_NETWORK" --mode=auto || exit 1
+	else
+		echo "-- Using preconfigured network \"$GCP_NETWORK\" with firewall-rule \"$fw_rule_allow_all\"."
+	fi
+	return 0
+}
 
-function __create_instance_group() {}
+function __init_firewall_rules() {
+	echo "-- Checking for firewall-rule \"$fw_rule_allow_all\""
+	if ! gcloud compute firewall-rules describe "$fw_rule_allow_all" &>/dev/null; then
+		echo "-- Firewall-rule not found. Creating firewall-rule now."
+		gcloud beta compute firewall-rules create "$fw_rule_allow_all" --direction=INGRESS \
+			--network="$GCP_NETWORK" --action=ALLOW --rules=ALL --source-ranges=0.0.0.0/0 || exit 1
+	fi
+	return 0
+}
+
+function __create_instance_template() {
+	echo "-- Creating instance template: $GK_TEMPLATE."
+	util::exec_with_retry "gcloud compute instance-templates create ${GK_TEMPLATE} \
+		--image=$CLUSTER_OS_IMAGE --image-project=$CLUSTER_OS_IMAGE_PROJECT \
+		--machine-type=$MACHINE_TYPE --network=$GCP_NETWORK \
+		--subnet=$GCP_NETWORK --region=$GCP_REGION  \
+		--boot-disk-auto-delete --boot-disk-size=$NODE_BOOT_DISK_SIZE \
+		--boot-disk-type=$NODE_BOOT_DISK_TYPE \
+		--metadata-from-file=\"startup-script\"=$STARTUP_SCRIPT" $RETRY_MAX
+	return 0
+}
+
+function __delete_instance_template() {
+	GK_TEMPLATE="$GK_NODE_NAME"
+	echo "-- Looking for old templates."
+	if gcloud compute instance-templates describe $GK_TEMPLATE &>/dev/null; then
+		echo "-- Instance template $GK_TEMPLATE already exists. Checking for dependent instance groups."
+		# Cleanup old groups.  Templates cannot be deleted until they have no dependent groups..
+		if gcloud compute instance-groups managed describe $GK_NODE_NAME \
+			--zone=$GCP_ZONE &>/dev/null; then
+			echo "-- Instance group $GK_NODE_NAME already exists, deleting before proceeding."
+			if ! gcloud compute instance-groups managed delete $GK_NODE_NAME \
+				--zone=$GCP_ZONE --quiet; then
+				echo "-- Failed to delete instance group $GK_NODE_NAME."
+				return 1
+			fi
+		fi
+		echo "-- Deleting instance template $GK_TEMPLATE."
+		if ! gcloud compute instance-templates delete $GK_TEMPLATE --quiet; then
+			echo "-- Failed to delete instance-template $GK_TEMPLATE."
+			return 1
+		fi
+	else
+		echo "-- No pre-existing template found."
+	fi
+	return 0
+}
+
+function __create_instance_group() {
+	echo "-- Creating instance group: $GK_NODE_NAME."
+	util::exec_with_retry "gcloud compute instance-groups managed create $GK_NODE_NAME --zone=$GCP_ZONE \
+		--template=$GK_TEMPLATE --size=$GK_NUM_NODES" $RETRY_MAX
+	return 0
+}
 
 function __delete_instance_group() {}
 
-function __init_network() {}
+function __create_master() {
+	echo "-- Looking for old master instance: $GK_MASTER_NAME."
+	if gcloud compute instances describe $GK_MASTER_NAME --zone=$GCP_ZONE &>/dev/null; then
+		echo "-- Instance $GK_MASTER_NAME  already exists. Deleting it before proceeding."
+		if ! gcloud compute instances delete $GK_MASTER_NAME --zone=$GCP_ZONE --quiet; then
+			echo "-- Failed to delete instance $GK_MASTER_NAME"
+			return 1
+		fi
+	else
+		echo "-- No pre-existing master instance found."
+	fi
 
-function __init_firewall_rules() {}
+	echo "-- Creating master instance: $GK_MASTER_NAME"
+	util::exec_with_retry "gcloud compute instances create $GK_MASTER_NAME --boot-disk-auto-delete \
+		--boot-disk-size=$NODE_BOOT_DISK_SIZE --boot-disk-type=$NODE_BOOT_DISK_TYPE \
+		--image-project=$CLUSTER_OS_IMAGE_PROJECT --machine-type=$MASTER_MACHINE_TYPE \
+		--network=$GCP_NETWORK --zone=$GCP_ZONE --image=$CLUSTER_OS_IMAGE \
+		--metadata-from-file=\"startup-script\"=$STARTUP_SCRIPT" $RETRY_MAX \
+	|| return 1
+	return 0
+}
 
-function __create_disk() {}
 
-function __attach_disk() {}
+function __create_secondary_disks() {
+	echo "-- Creating RHGS block devices: ${OBJ_STORAGE_ARR[@]}"
+	util::exec_with_retry "gcloud compute disks create ${OBJ_STORAGE_ARR[*]} \
+		--size=$GLUSTER_DISK_SIZE --zone=$GCP_ZONE" $RETRY_MAX \
+	|| return 1
+	return 0
+}
 
-function __set_disk_auto_delete() {}
+function __attach_secondary_disks() {
+	for (( i=0; i < ${#OBJ_STORAGE_ARR[@]}; i++ )); do
+		# Make several attach attempts per disk.
+		util::exec_with_retry "gcloud compute instances attach-disk ${MINION_NAMES[$i]} \
+			--disk=${OBJ_STORAGE_ARR[$i]} --zone=$GCP_ZONE" $RETRY_MAX \
+		|| return 1
+		util::exec_with_retry "gcloud compute instances set-disk-auto-delete ${MINION_NAMES[$i]} \
+			--disk=${OBJ_STORAGE_ARR[$i]} --zone=$GCP_ZONE" $RETRY_MAX \
+		|| return 1
+	done
+	return 0
+}
+
+function __delete_secondary_disks() {
+	local disk_prefix="$GCP_USER-rhgs"
+	OBJECT_STORAGE_ARR=()
+	echo "-- Looking for old RHGS disks with prefix $disk_prefix."
+	for (( i=0; i<${#MINION_NAMES[@]}; i++ )); do
+		local disk="$disk_prefix-$i"
+		OBJ_STORAGE_ARR[$i]="$disk"
+		if gcloud compute disks describe $disk &>/dev/null; then
+			echo "Found disk $disk. Deleting..."
+			if ! gcloud compute disks delete $disk --zone=$GCP_ZONE --quiet; then
+				echo "-- Failed to delete old RHGS disk \"$disk\""
+				return 1
+			fi
+		fi
+	done
+	return 0
+}
 
 # Generic Utilities
 # util::* functions are a set of operations that are implmented by each provider's
@@ -36,9 +152,27 @@ function __set_disk_auto_delete() {}
 # such that when they are called, they execute the required low level, provider
 # specific operations that result in the expected outcomue (e.g. create_instances
 # creates a set of instances in the given provider.)
-function util::create_instances() {}
 
-function util::destroy_instances() {}
+function util::verify_client() {
+	command -v gcloud || { echo "CLI client 'gcloud' not found."; return 1; }
+	return 0
+}
+
+function util::create_instances() {
+	# __init_network
+	# __init_firewall_rules
+	# __create_instance_template
+	# __create_instance_group
+	# __create_secondary_disks
+	# __create_master
+	return 0
+}
+
+function util::destroy_instances() {
+	# __delete_instance_group
+	# __delete_instance_template
+	return 0
+}
 
 # util::get_instance_info: based on the passed in instance-filter and optional key(s), return a map
 # (as a string) which includes one of more of the following keys:

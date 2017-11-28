@@ -1,6 +1,6 @@
 #! /bin/bash
 #
-# 'init.sh' is expected to be sourced. This file include functions for initializing the
+# 'init.sh' is expected to be sourced. This file includes functions for initializing the
 # environment based on the cloud provider. GCE and AWS are the only providers supported
 # for now. All functions must be prefixed with "init::".
 #

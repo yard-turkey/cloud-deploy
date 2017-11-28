@@ -8,9 +8,21 @@
 
 # Helpers #
 # These functions implement lower leverl operations required for deploying
-# and destroying Google Compute Engine instances.
+# and destroying Amazon Web Service EC2 instances.  These functions should be
+# considered private, scoped to the provider.
 
-function __run_instance() {}
+function __run_instance() {
+	# TODO parameterize options values
+	aws ec2 run-instances \
+	--count 2 \
+	--image-id ami-2fb42b39 \
+	--instance-type t2.large \
+	--key-name libra \
+	--subnet-id subnet-cf57c596 \
+	--tag-specifications \
+	'ResourceType=instance,Tags=[{Key=Name,Value=jcope-test}]' \
+	'ResourceType=volume,Tags=[{Key=Name,Value=jcope-test}]'
+}
 
 # Generic Utilities
 # util::* functions are a set of operations that are implmented by each provider's
@@ -18,6 +30,12 @@ function __run_instance() {}
 # such that when they are called, they execute the required low level, provider
 # specific operations that result in the expected outcomue (e.g. create_instances
 # creates a set of instances in the given provider.)
+
+function util::verify_client() {
+	command -v aws &>1 || { echo "CLI client 'aws' not found."; return 1; }
+	return 0
+}
+
 function util::create_instances() {}
 
 function util::destroy_instances() {}

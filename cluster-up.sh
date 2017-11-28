@@ -1,6 +1,6 @@
 #! /bin/bash
 #
-# 'gk-up.sh', and its companion startup script 'do-startup.sh', create a gce cluster customized using a 
+# 'gk-up.sh', and its companion startup script 'do-startup.sh', create a gce cluster customized using a
 # rhel 7 image with gluster, heketi, git, helm, kubernetes, service-catalog, etc installed. The startup
 # script creates a file named "/root/__SUCCESS" once it has completed. If the gce cluster is running it
 # will be shut down (this script is idempotent.) A custom cns s3 service broker is also installed.
@@ -31,6 +31,7 @@ function print_help() {
 	echo "   DO NOT install CNS Object Broker"
 }
 
+# TODO add provider flag
 # Parse out -y arg if present.
 function parse_args() {
 	# 0=true, 1=false
@@ -47,7 +48,7 @@ function parse_args() {
 			;;
 		i)	# do not initialize anything.  allow the start up script to run then exit
 			INIT_KUBE=1
-			;&	
+			;&
 		g)	# bare cluster:  do not install gluster; fallthrough and do not install object.
 			INSTALL_GLUSTER=1
 			;&
@@ -56,7 +57,7 @@ function parse_args() {
 			;;
 		h)
 			print_help
-			return 2 
+			return 2
 			;;
 		[?])
 			print_help
@@ -77,7 +78,7 @@ function wait_on_master() {
 
 # Wait for the minion node startup script to complete and attach kube minions to master.
 function join_minions() {
-	echo "-- Attaching minions to kube master." 
+	echo "-- Attaching minions to kube master."
 	local token="$(gcloud compute ssh $GK_MASTER_NAME --zone=$GCP_ZONE --command='kubeadm token list' | \
 		awk 'NR>1{print $1}')"
 	local join_cmd="kubeadm join --skip-preflight-checks --token $token ${MASTER_IPS[0]}:6443" # internal ip
@@ -175,7 +176,7 @@ REPO_ROOT="$(realpath $(dirname $0))"
 STARTUP_SCRIPT="${REPO_ROOT}/do-startup.sh"
 RETRY_MAX=5
 source ${REPO_ROOT}/lib/config.sh
-source ${REPO_ROOT}/lib/util.sh
+#source ${REPO_ROOT}/lib/util.sh
 
 __pretty_print "" "Gluster-Kubernetes" "/"
 __print_config
@@ -187,16 +188,17 @@ if [ $DO_CONFIG_REVIEW = 0 ]; then
 fi
 
 printf "\nThis script deploys a kubernetes cluster with $GK_NUM_NODES nodes and prepares them for testing gluster-kubernetes and object storage.\n"
-source $REPO_ROOT/lib/gce.sh
-gce_util::verify_gcloud		|| exit 1
-gce_util::delete_templates	|| exit 1
-gce_util::create_network	|| exit 1
-gce_util::create_template	|| exit 1
-gce_util::create_group		|| exit 1
-gce_util::create_master		|| exit 1
-gce_util::master_minions_ips	|| exit 1
-gce_util::delete_rhgs_disks	|| exit 1
-gce_util::create_attach_disks	|| exit 1
+
+util::verify_gcloud		|| exit 1
+exit 0
+#gce_util::delete_templates	|| exit 1
+#gce_util::create_network	|| exit 1
+#gce_util::create_template	|| exit 1
+#gce_util::create_group		|| exit 1
+#gce_util::create_master		|| exit 1
+#gce_util::master_minions_ips	|| exit 1
+#gce_util::delete_rhgs_disks	|| exit 1
+#gce_util::create_attach_disks	|| exit 1
 wait_on_master			|| exit 1
 if [ $INIT_KUBE = 0 ]; then
 	join_minions		|| exit 1
