@@ -42,16 +42,16 @@ function make_ep_json() {
 	local subsets
 
 	for ip in ${INSTMAP[PRIVATE_IPS]}; do
-		subsets+="{\"addresses\":[{\"ip\":'$ip'}],\"ports\":[{\"port\":1}]},"
+		subsets+="{\"addresses\":[{\"ip\":\"$ip\"}],\"ports\":[{\"port\":1}]},"
 	done
 	subsets="${subsets::-1}" # remove last comma
 	local ep
 	ep="\
 {
-  \"kind\": 'Endpoints',
-  \"apiVersion\": 'v1',
+  \"kind\": \"Endpoints\",
+  \"apiVersion\": \"v1\",
   \"metadata\": {
-    \"name\": 'gluster-cluster'
+    \"name\": \"gluster-cluster\"
   },
   \"subsets\": [
     $subsets
