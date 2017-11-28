@@ -12,23 +12,24 @@
 
 # create the endpoints object on the passed-in provider. The json endpoints file is expected to
 # already live in /tmp in each target instance.
+# Note: all references to 'zone' are accepted but *ignored* by aws.
 function create_ep() {
 	readonly provider="$1"; readonly filter="$2"
 	readonly ep_file='/tmp/endpoints.json'
 	readonly cmd="kubectl create -f $ep_file"
 
 	init::load_provider $provider || return 1
-	local info="$(util::get_instance_info $filter NAMES ZONES)"
+	local info="$(util::get_instance_info $filter NAMES ZONES)" # zones ignored by aws
 	if (( $? != 0 )); then
 		echo "failed to get $provider instance names" >&2
 		return 1
 	fi
 	declare -A instances=$info
 
-	local inst; local i=0; local zone # only needed for gce
-	local zones=(${instances[ZONES]}) # array, empty for aws
+	local inst; local i=0; local zone
+	local zones=(${instances[ZONES]}) # array
 	for inst in ${instances[NAMES]}; do
-		zone="${zones[$i]}" # empty for aws
+		zone="${zones[$i]}"
 		util::remote_cmd $inst $zone $cmd || return 1
 		((i++))
 	done

@@ -15,7 +15,7 @@
 #	PRIVATE_IPS - list of cluster internal ips
 #	PUBLIC_IPS  - list of external ips
 # Note: all keys for all providers must be accepted, meaning do not cause an error, but should have
-#       an empty value if not applicable to a cloud provider.
+#       an empty value if not applicable to the cloud provider.
 # Args: 1=instance-filter (required), 2+=zero or more map keys separated by spaces. If no key is
 #       provided then all key values are returned.
 # Note: caller should 'declare -A map_var' before assigning to this function's return. Eg:
@@ -114,3 +114,21 @@ function util::copy_file() {
 	done
 	return 0
 }
+
+# util::remote_cmd: execute the passed-in command on the target instance via sudo.
+#
+function util::remote_cmd() {
+	readonly inst="$1"
+	shift; readonly cmd="sudo $@"
+	readonly aws_user='centos'
+	local err
+
+	ssh -t $aws_user@$inst "$cmd"
+	err=$?
+	if (( err != 0 )); then
+		echo "error executing 'ssh -t $aws_user@$inst \"$cmd\"': $err" >&2
+		return 1
+	fi
+	return 0
+}
+
