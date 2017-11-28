@@ -17,7 +17,7 @@
 #	PRIVATE_IPS - list of cluster internal ips
 #	PUBLIC_IPS  - list of external ips
 # Note: all keys for all providers must be accepted, meaning do not cause an error, but should have
-#       an empty value if not applicable to a cloud provider.
+#       an empty value if not applicable to the cloud provider.
 # Args: 1=instance-filter (required), 2+=zero or more map keys separated by spaces. If no key is
 #       provided then all key values are returned.
 # Note: caller should 'declare -A map_var' before assigning to this function's return. Eg:
@@ -125,15 +125,16 @@ function util::copy_file() {
 }
 
 # util::remote_cmd: execute the passed-in command on the target instance/zone.
-function util:remote_cmd() {
+#
+function util::remote_cmd() {
 	readonly inst="$1"; readonly zone="$2"
-	shift 2; readonly remote_cmd="$@"
+	shift 2; readonly cmd="$@"
 	local err
 
 	gcloud compute ssh $inst --command="$cmd" --zone=$zone
 	err=$?
 	if (( err != 0 )); then
-		echo "error executing 'gcloud compute ssh $inst --command=$cmd': $err" >&2
+		echo "error executing 'gcloud compute ssh $inst --command=$cmd --zone=$zone': $err" >&2
 		return 1
 	fi
 	return 0
