@@ -6,14 +6,18 @@
 # All providers are expected to support the following functions:
 #	util::get_instance_info
 #	util::copy_file
-#
+#	util::remote_cmd
+
 
 # util::get_instance_info: based on the passed in instance-filter and optional key(s), return a map
 # (as a string) which includes one of more of the following keys:
 #	NAMES       - list of instance dns names
+#	IDS	    - empty for gce
 #	ZONES       - list of zones
 #	PRIVATE_IPS - list of cluster internal ips
 #	PUBLIC_IPS  - list of external ips
+# Note: all keys for all providers must be accepted, meaning do not cause an error, but should have
+#       an empty value if not applicable to a cloud provider.
 # Args: 1=instance-filter (required), 2+=zero or more map keys separated by spaces. If no key is
 #       provided then all key values are returned.
 # Note: caller should 'declare -A map_var' before assigning to this function's return. Eg:
@@ -32,6 +36,7 @@ function util::get_instance_info() {
 			ZONES)       query+='zone,';;
 			PRIVATE_IPS) query+='networkInterfaces[].networkIP,';;
 			PUBLIC_IPS)  query+='networkInterfaces[].accessConfigs[0].natIP,';;
+			IDS)	     ;; # ignore but not an error
 			*)	     echo "Unknown gce info key: $key" >&2; return 1;;
 		esac
 	done
@@ -79,6 +84,7 @@ function util::get_instance_info() {
 	echo "$map" # return json string
 	return 0
 }
+
 # util::copy_file: use 'gcloud compute scp' to copy the passed-in source file to the
 # supplied target file on the passed-in instance names. Returns 1 on errors.
 # Args:
@@ -117,3 +123,19 @@ function util::copy_file() {
         done
         return 0
 }
+
+# util::remote_cmd: execute the passed-in command on the target instance/zone.
+function util:remote_cmd() {
+	readonly inst="$1"; readonly zone="$2"
+	shift 2; readonly remote_cmd="$@"
+	local err
+
+	gcloud compute ssh $inst --command="$cmd" --zone=$zone
+	err=$?
+	if (( err != 0 )); then
+		echo "error executing 'gcloud compute ssh $inst --command=$cmd': $err" >&2
+		return 1
+	fi
+	return 0
+}
+

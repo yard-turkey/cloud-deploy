@@ -34,7 +34,6 @@ function parse_options() {
 	return 0
 }
 
-
 # Return endpoints as a json string based on the provider's internal (private) ips.
 # Requires the global map INSTMAP.
 # Note: the endpoints object name is hard-coded to "gluster-cluster" for now...
@@ -43,18 +42,18 @@ function make_ep_json() {
 	local subsets
 
 	for ip in ${INSTMAP[PRIVATE_IPS]}; do
-		subsets+="{'addresses':[{'ip':'$ip'}],'ports':[{'port':1}]},"
+		subsets+="{\"addresses\":[{\"ip\":'$ip'}],\"ports\":[{\"port\":1}]},"
 	done
 	subsets="${subsets::-1}" # remove last comma
 	local ep
 	ep="\
 {
-  'kind': 'Endpoints',
-  'apiVersion': 'v1',
-  'metadata': {
-    'name': 'gluster-cluster'
+  \"kind\": 'Endpoints',
+  \"apiVersion\": 'v1',
+  \"metadata\": {
+    \"name\": 'gluster-cluster'
   },
-  'subsets': [
+  \"subsets\": [
     $subsets
   ]
 }"
@@ -91,11 +90,11 @@ if [[ -z "$FILTER" ]]; then
 	exit 1
 fi
 
-(( SCP )) && EP_FILE='/tmp/endpoints.json'
-
 echo "   Create endpoints json for $PROVIDER ($FILTER)..." >&2
-(( SCP )) &&
+if (( SCP )); then
+	EP_FILE='/tmp/endpoints.json'
 	echo "   and copy file as \"$EP_FILE\" on each provider instance..." >&2
+fi
 echo >&2
 
 # get internal ips from provider, and optionally instance names
