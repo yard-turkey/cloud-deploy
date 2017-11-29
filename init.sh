@@ -1,11 +1,11 @@
 #! /bin/bash
 #
-# 'init.sh' is expected to be sourced. This file include functions for initializing the
+# 'init.sh' is expected to be sourced. This file includes functions for initializing the
 # environment based on the cloud provider. GCE and AWS are the only providers supported
-# for now. All functions must be prefixed with "init::".
+# for now. By convention, function namess should be prefixed with "init::".
 #
 
-# init::load_provider: source the utility file based on the passed-in provider.
+# init::load_provider: source the utility (helper) file based on the passed-in provider.
 # Returns 1 for errors.
 function init::load_provider() {
 	local provider="$1"

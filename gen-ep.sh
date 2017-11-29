@@ -4,9 +4,9 @@
 #
 # Usage:
 #	./gen-ep.sh [--scp] <provider> <instance-filter> [ep-name]
-#	<provider> (required) name of cloud provider. Expect "aws" or "gce".
-#	<filter>   (required) same value used as '--filter=' in the aws and gce cli.
-#	<ep-name>  (optional) name of endpoints object. Defaults to "gluster-cluster"
+#	<provider> (required) name of a cloud provider, eg. "aws", "gce".
+#	<filter>   (required) name or pattern uniquely identifying the target instance(s).
+#	<ep-name>  (optional) name of endpoints object. Defaults to "gluster-cluster".
 #	--scp	   if present, copy json file to provider instances. If supplied then output
 #		   redirection should not be used.
 # Example:
@@ -15,7 +15,8 @@
 
 
 # Parse script options. Non-option arguments are parsed my the main script block.
-# Sets global option names to 1 if present.
+# Sets global option names to 1 if present. Absence of option name implies it was
+# not supplied.
 function parse_options() {
 	local opts='scp'; local parsed
 
@@ -68,7 +69,7 @@ cat <<END >&2
    This script outputs endpoints json based on the supplied provider and filter, suitable for
    'kubectl create -f'.  Redirect output to capture the output in a file, or instead use --scp
    to copy the json file to "/tmp/endpoints.json" on each instance.
-   If the endpoints name is omitted, the default name of "gluster-cluster" is used.
+   If the endpoints name is omitted, "gluster-cluster" is used as the default.
 
    Usage: $0 [--scp] <provider> <instance-filter> <endpoints-name]
  	  eg. $0 aws jcope >ep.json
@@ -115,7 +116,7 @@ declare -A INSTMAP=$info
 # create endpoint json
 json="$(make_ep_json $EP_NAME)"
 
-# scp ep file or just output contents?
+# copy ep file or just output contents?
 if (( SCP )); then
 	TMP_EP="/tmp/${PROVIDER}-ep.json"
 	echo "$json" >$TMP_EP
