@@ -3,9 +3,10 @@
 # 'gen-ep.sh' outputs enpoints json based on the supplied provider and instance filter.
 #
 # Usage:
-#	./gen-ep.sh [--scp] <provider> <instance-filter>
+#	./gen-ep.sh [--scp] <provider> <instance-filter> [ep-name]
 #	<provider> (required) name of cloud provider. Expect "aws" or "gce".
 #	<filter>   (required) same value used as '--filter=' in the aws and gce cli.
+#	<ep-name>  (optional) name of endpoints object. Defaults to "gluster-cluster"
 #	--scp	   if present, copy json file to provider instances. If supplied then output
 #		   redirection should not be used.
 # Example:
@@ -34,12 +35,11 @@ function parse_options() {
 	return 0
 }
 
-# Return endpoints as a json string based on the provider's internal (private) ips.
-# Requires the global map INSTMAP.
-# Note: the endpoints object name is hard-coded to "gluster-cluster" for now...
+# Return endpoints as a json string based on the provider's internal (private) ips and the 
+# passed-in endpoints object name. Requires the global map INSTMAP.
 function make_ep_json() {
-	local ip
-	local subsets
+	readonly ep_name="$1"
+	local ip; local subsets
 
 	for ip in ${INSTMAP[PRIVATE_IPS]}; do
 		subsets+="{\"addresses\":[{\"ip\":\"$ip\"}],\"ports\":[{\"port\":1}]},"
@@ -51,7 +51,7 @@ function make_ep_json() {
   \"kind\": \"Endpoints\",
   \"apiVersion\": \"v1\",
   \"metadata\": {
-    \"name\": \"gluster-cluster\"
+    \"name\": \"$ep_name\"
   },
   \"subsets\": [
     $subsets
@@ -68,10 +68,11 @@ cat <<END >&2
    This script outputs endpoints json based on the supplied provider and filter, suitable for
    'kubectl create -f'.  Redirect output to capture the output in a file, or instead use --scp
    to copy the json file to "/tmp/endpoints.json" on each instance.
-   Note: the name of the endpoints object is set to "gluster-cluster" so if a service is also used
-   that service should have the same name.
+   If the endpoints name is omitted, the default name of "gluster-cluster" is used.
 
-   Usage: $0 [--scp] <provider> <instance-filter>  eg. $0 aws jcope >ep.json
+   Usage: $0 [--scp] <provider> <instance-filter> <endpoints-name]
+ 	  eg. $0 aws jcope >ep.json
+ 	      $0 gce jcope federated-data
 
 END
 
@@ -90,10 +91,13 @@ if [[ -z "$FILTER" ]]; then
 	exit 1
 fi
 
+EP_NAME="$3"
+[[ -z "$EP_NAME" ]] && EP_NAME='gluster-cluster'
+
 echo "   Create endpoints json for $PROVIDER ($FILTER)..." >&2
 if (( SCP )); then
 	EP_FILE='/tmp/endpoints.json'
-	echo "   and copy file as \"$EP_FILE\" on each provider instance..." >&2
+	echo "   and copy file as \"$EP_FILE\" on each instance..." >&2
 fi
 echo >&2
 
@@ -109,7 +113,7 @@ fi
 declare -A INSTMAP=$info
 
 # create endpoint json
-json="$(make_ep_json)"
+json="$(make_ep_json $EP_NAME)"
 
 # scp ep file or just output contents?
 if (( SCP )); then
