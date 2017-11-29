@@ -1,11 +1,11 @@
 #! /bin/bash
 #
 # 'create-ep.sh' creates an endpoints resource on all aws and gce instances that match
-# the <instance-filter> parameter.
+# the <instance-filter> argument.
 #
 # Usage:
 #	./create-ep.sh <instance-filter> [ep-name]
-#	<filter>   (required) same value used as '--filter=' in the aws and gce cli.
+#	<filter>   (required) name or pattern uniquely identifying the target instance(s).
 #       <ep-name>  (optional) name of endpoints object. Defaults to "gluster-cluster"
 # Example:
 #	./create-ep.sh jcope
@@ -13,7 +13,7 @@
 
 
 # create the endpoints object on the passed-in provider. The json endpoints file is expected to
-# already live in /tmp in each target instance.
+# already live in /tmp on the target instances.
 # Note: all references to 'zone' are accepted but *ignored* by aws helper funcs.
 function create_ep() {
 	readonly provider="$1"; readonly filter="$2"
@@ -42,8 +42,8 @@ function create_ep() {
 
 cat <<END >&2
 
-   This script creates the endpoints resource on all instances that match the supplied filter
-   and optional enpoints name. If the endpoints name is omitted the default of "gluster-cluster"
+   This script creates an endpoints resource on all instances that match the supplied filter.
+   The endpoints object name can be supplied. If the endpoints name is omitted "gluster-cluster"
    is used.
 
    Usage: $0 <instance-filter> [endpoints-name]  eg. $0 jcope
