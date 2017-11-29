@@ -4,15 +4,17 @@
 # the <instance-filter> parameter.
 #
 # Usage:
-#	./create-ep.sh <instance-filter>
+#	./create-ep.sh <instance-filter> [ep-name]
 #	<filter>   (required) same value used as '--filter=' in the aws and gce cli.
+#       <ep-name>  (optional) name of endpoints object. Defaults to "gluster-cluster"
 # Example:
 #	./create-ep.sh jcope
+#	./create-ep.sh jcope my-gluster
 
 
 # create the endpoints object on the passed-in provider. The json endpoints file is expected to
 # already live in /tmp in each target instance.
-# Note: all references to 'zone' are accepted but *ignored* by aws.
+# Note: all references to 'zone' are accepted but *ignored* by aws helper funcs.
 function create_ep() {
 	readonly provider="$1"; readonly filter="$2"
 	readonly ep_file='/tmp/endpoints.json'
@@ -40,11 +42,11 @@ function create_ep() {
 
 cat <<END >&2
 
-   This script creates the endpoints resource on all instances that match the supplied filter.
-   Note: the name of the endpoints object is set to "gluster-cluster" so if a service is also used
-   that service should have the same name.
+   This script creates the endpoints resource on all instances that match the supplied filter
+   and optional enpoints name. If the endpoints name is omitted the default of "gluster-cluster"
+   is used.
 
-   Usage: $0 <instance-filter>  eg. $0 jcope
+   Usage: $0 <instance-filter> [endpoints-name]  eg. $0 jcope
 
 END
 
@@ -56,6 +58,7 @@ if [[ -z "$FILTER" ]]; then
 	echo "Missing required instance-filter value" >&2
 	exit 1
 fi
+EP_NAME="$3" # optional
 EP_SCRIPT="$ROOT/gen-ep.sh"
 if [[ ! -f "$EP_SCRIPT" ]]; then
 	echo "endpoint generating script, $EP_SCRIPT, missing" >&2
@@ -64,7 +67,7 @@ fi
 
 for provider in aws gce; do
 	echo "   Create endpoints object for $provider ($FILTER)..." >&2
-	eval "$EP_SCRIPT $provider $FILTER --scp"
+	eval "$EP_SCRIPT $provider $FILTER $EP_NAME --scp"
 	if (( $? != 0 )); then
 		echo "error executing $EP_SCRIPT script" >&2
 		exit 1
