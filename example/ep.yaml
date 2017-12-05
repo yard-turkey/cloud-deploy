@@ -1,0 +1,13 @@
+kind: Endpoints
+apiVersion: v1
+metadata:
+  name: gfs-cluster
+subsets:
+  - addresses:
+      - ip: 10.128.0.4 # replace w. internal ip
+    ports:
+      - port: 1
+  - addresses:
+      - ip: 10.128.0.5 # replace w. internal ip
+    ports:
+      - port: 1

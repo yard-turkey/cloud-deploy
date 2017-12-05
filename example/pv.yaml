@@ -1,0 +1,15 @@
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: gfs-pv
+spec:
+  storageClassName: "" # no dynamic provisioning
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteMany
+  glusterfs:
+    endpoints: gfs-cluster
+    path: /gv0 # gluster vol name
+    readOnly: false
+  persistentVolumeReclaimPolicy: Retain

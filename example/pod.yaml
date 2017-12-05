@@ -1,0 +1,21 @@
+kind: Pod
+apiVersion: v1
+metadata:
+  name: gfs-pod
+spec:
+  #restartPolicy: Never
+  containers:
+    - name: gluster-bb
+      image: busybox
+      imagePullPolicy: IfNotPresent
+      command:
+        - "sh"
+        - "-c"
+        - 'i=0; while true; do date +"%D %r gce-write-$i" >>/mnt/vol/FOO; sleep 4; let i+=1; done'
+      volumeMounts:
+        - mountPath: /mnt/vol/
+          name: gluster-vol
+  volumes:
+    - name: gluster-vol
+      persistentVolumeClaim:
+        claimName: gfs-pvc
