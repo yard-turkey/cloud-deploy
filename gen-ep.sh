@@ -67,11 +67,11 @@ function make_ep_json() {
 cat <<END >&2
 
    This script outputs endpoints json based on the supplied provider and filter, suitable for
-   'kubectl create -f'.  Redirect output to capture the output in a file, or instead use --scp
-   to copy the json file to "/tmp/endpoints.json" on each instance.
-   If the endpoints name is omitted, "gluster-cluster" is used as the default.
+   'kubectl create -f'. Redirect output to capture the output in a file, or instead use --scp
+   to copy the json file to "/tmp/endpoints.json" on each instance. If the endpoints name is
+   omitted, "gluster-cluster" is used as the default.
 
-   Usage: $0 [--scp] <provider> <instance-filter> <endpoints-name]
+   Usage: $0 [--scp] <provider> <instance-filter> [<endpoints-name>]
  	  eg. $0 aws jcope >ep.json
  	      $0 gce jcope federated-data
 
@@ -94,6 +94,12 @@ fi
 
 EP_NAME="$3"
 [[ -z "$EP_NAME" ]] && EP_NAME='gluster-cluster'
+
+# verify provider cli is present
+if ! util::cli_present; then
+	echo "$PROVIDER cli is not found (or is not executable) in PATH" >&2
+	exit 1
+fi
 
 echo "   Create endpoints json for $PROVIDER ($FILTER)..." >&2
 if (( SCP )); then

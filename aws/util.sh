@@ -3,11 +3,17 @@
 # AWS specific utility (helper) functions. Expected to live in the "aws/" directory. Function names must
 # be prefixed with "util::".
 # All providers are expected to support the following functions:
-#	util::get_instance_info
+#	util::cli_present
 #	util::copy_file
-#
+#	util::get_instance_info
+#	util::remote_cmd
 
-# util::get_instance_info: based on the passed in instance-filter and optional key(s), return a map
+# util::cli_present - return 0 if the aws cli can be found in PATH and is executable.
+function util::cli_present() {
+        [[ -x $(which aws) ]] && return 0 || return 1
+}
+
+# util::get_instance_info - based on the passed in instance-filter and optional key(s), return a map
 # (as a string) which includes one of more of the following keys:
 #	NAMES       - list of instance dns names
 #	IDS         - list of ids
@@ -83,7 +89,7 @@ function util::get_instance_info() {
 	return 0
 }
 
-# util::copy_file: use scp to copy the passed-in source file to the supplied target file on the
+# util::copy_file - use scp to copy the passed-in source file to the supplied target file on the
 # passed-in instance names. Returns 1 on errors.
 # Args:
 #   1=name of source file (on local host)
@@ -115,8 +121,7 @@ function util::copy_file() {
 	return 0
 }
 
-# util::remote_cmd: execute the passed-in command on the target instance via sudo.
-#
+# util::remote_cmd - execute the passed-in command on the target instance via sudo.
 function util::remote_cmd() {
 	readonly inst="$1"
 	shift; readonly cmd="sudo $@"
