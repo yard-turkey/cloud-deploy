@@ -1,16 +1,21 @@
 #!/bin/bash
 #
-# GCE specific utility (helper) functions. Expected to live in the "gce/" directory. Function names must
-# be prefixed with "util::".
+# GCE specific utility (helper) functions. Expected to live in the "gce/" directory.
+# Function names must be prefixed with "util::".
 
 # All providers are expected to support the following functions:
-#	util::get_instance_info
+#	util::cli_present
 #	util::copy_file
+#	util::get_instance_info
 #	util::remote_cmd
 
+# util::cli_present - return 0 if the gcloud cli can be found in PATH and is executable.
+function util::cli_present() {
+	[[ -x $(which gcloud) ]] && return 0 || return 1
+}
 
-# util::get_instance_info: based on the passed in instance-filter and optional key(s), return a map
-# (as a string) which includes one of more of the following keys:
+# util::get_instance_info - based on the passed in instance-filter and optional key(s),
+# return a map (as a string) which includes one of more of the following keys:
 #	NAMES       - list of instance dns names
 #	IDS	    - empty for gce
 #	ZONES       - list of zones
@@ -85,7 +90,7 @@ function util::get_instance_info() {
 	return 0
 }
 
-# util::copy_file: use 'gcloud compute scp' to copy the passed-in source file to the
+# util::copy_file - use 'gcloud compute scp' to copy the passed-in source file to the
 # supplied target file on the passed-in instance names. Returns 1 on errors.
 # Args:
 #   1=name of source file (on local host)
@@ -124,8 +129,7 @@ function util::copy_file() {
         return 0
 }
 
-# util::remote_cmd: execute the passed-in command on the target instance/zone.
-#
+# util::remote_cmd - execute the passed-in command on the target instance/zone.
 function util::remote_cmd() {
 	readonly inst="$1"; readonly zone="$2"
 	shift 2; readonly cmd="$@"

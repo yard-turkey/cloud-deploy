@@ -42,9 +42,9 @@ function create_ep() {
 
 cat <<END >&2
 
-   This script creates an endpoints resource on all instances that match the supplied filter.
-   The endpoints object name can be supplied. If the endpoints name is omitted "gluster-cluster"
-   is used.
+   This script creates an endpoints resource on all instances across gce and aws that match the
+   supplied filter. The endpoints object name can be supplied. If the endpoints name is omitted
+   "gluster-cluster" is the default name.
 
    Usage: $0 <instance-filter> [endpoints-name]  eg. $0 jcope
 
@@ -58,9 +58,9 @@ if [[ -z "$FILTER" ]]; then
 	echo "Missing required instance-filter value" >&2
 	exit 1
 fi
-EP_NAME="$3" # optional
+EP_NAME="$2" # optional
 EP_SCRIPT="$ROOT/gen-ep.sh"
-if [[ ! -f "$EP_SCRIPT" ]]; then
+if [[ ! -x "$EP_SCRIPT" ]]; then
 	echo "endpoint generating script, $EP_SCRIPT, missing" >&2
 	exit 1
 fi
