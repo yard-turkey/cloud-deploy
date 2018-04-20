@@ -249,19 +249,19 @@ function create_attach_disks() {
 function wait_on_master() {
 	echo "-- Waiting for start up scripts to complete on $GK_MASTER_NAME."
 	util::exec_with_retry "gcloud compute ssh  $GK_MASTER_NAME --zone=$GCP_ZONE \
-		--command='ls /root/__SUCCESS 2>/dev/null'" 50
+		--command='sudo ls /root/__SUCCESS 2>/dev/null'" 50
 }
 
 # Wait for the minion node startup script to complete and attach kube minions to master.
 function join_minions() {
 	echo "-- Attaching minions to kube master." 
-	local token="$(gcloud compute ssh $GK_MASTER_NAME --zone=$GCP_ZONE --command='kubeadm token list' | \
+	local token="$(gcloud compute ssh $GK_MASTER_NAME --zone=$GCP_ZONE --command='sudo kubeadm token list' | \
 		awk 'NR>1{print $1}')"
-	local join_cmd="kubeadm join --skip-preflight-checks --token $token ${MASTER_IPS[0]}:6443" # internal ip
+	local join_cmd="sudo kubeadm join --ignore-preflight-errors=all --discovery-token-unsafe-skip-ca-verification --token $token ${MASTER_IPS[0]}:6443" # internal ip
 	for node in "${MINION_NAMES[@]}"; do
 		echo "-- Waiting for start up scripts to complete on node $node."
 		util::exec_with_retry "gcloud compute ssh --zone=$GCP_ZONE $node \
-			--command='ls /root/__SUCCESS 2>/dev/null'" 50 \
+			--command='sudo ls /root/__SUCCESS 2>/dev/null'" 50 \
 		|| return 1
 		# Join kubelet to master
 		echo "-- Executing '$join_cmd' on node $node."
@@ -275,8 +275,9 @@ function join_minions() {
 function update_etc_hosts() {
 	echo "-- Update master's hosts file:"
 	echo "   Appending \"${HOSTS[*]}\" to $GK_MASTER_NAME's /etc/hosts."
+	#todo: this is not working
 	gcloud compute ssh "$GK_MASTER_NAME" --zone="$GCP_ZONE" \
-		--command="printf '%s  %s  # Added by gk-up\n' ${HOSTS[*]} >>/etc/hosts"
+		--command="sudo su; printf '%s  %s  # Added by gk-up\n' ${HOSTS[*]} >>/etc/hosts"
 }
 
 # Build gluster-Kubernetes topology file.
@@ -284,11 +285,11 @@ function create_topology() {
 	echo "-- Generating gluster-kubernetes topology.json"
 	local topology_path="$(util::gen_gk_topology ${HOSTS[*]})"
 	echo "-- Sending topology to $GK_MASTER_NAME:/tmp/"
-	util::exec_with_retry "gcloud compute scp --zone=$GCP_ZONE $topology_path root@$GK_MASTER_NAME:/tmp/" $RETRY_MAX \
+	util::exec_with_retry "gcloud compute scp --zone=$GCP_ZONE $topology_path $GCP_USER@$GK_MASTER_NAME:/tmp/" $RETRY_MAX \
 	|| return 1
 	echo "-- Finding gk-deploy.sh on $GK_MASTER_NAME"
 	GK_DEPLOY="$(gcloud compute ssh $GK_MASTER_NAME --zone=$GCP_ZONE \
-		--command='find /root/ -type f -wholename *deploy/gk-deploy')"
+		--command='sudo find /root/ -type f -wholename *deploy/gk-deploy')"
 	if (( $? != 0 )) || [[ -z "$GK_DEPLOY" ]]; then
 		echo -e "-- Failed to find gk-deploy cmd on master. ssh to master and do:\n   find /root/ -type f -wholename *deploy/gk-deploy"
 		return 1
@@ -307,7 +308,7 @@ function run_gk_deploy() {
 	printf "\n\nBEGIN DEBUG"
 	set -x
 	gcloud compute ssh "$GK_MASTER_NAME" --zone="$GCP_ZONE" \
-        --command="$GK_DEPLOY -gvy --no-block ${s3_opts} /tmp/topology.json"
+        --command="sudo $GK_DEPLOY -gvy --no-block ${s3_opts} /tmp/topology.json"
 	set +x
 	printf "\n\n END DEBUG"
 	if (( $? != 0 )); then
@@ -320,7 +321,7 @@ function run_gk_deploy() {
 # Expose gluster s3.
 function expose_gluster_s3() {
 	util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME --zone=$GCP_ZONE \
-		--command='kubectl expose deployment gluster-s3-deployment --type=NodePort \
+		--command='sudo kubectl expose deployment gluster-s3-deployment --type=NodePort \
 		  --port=8080'" $RETRY_MAX
 }
 
@@ -331,11 +332,11 @@ function install_cns-broker() {
 	local chart="cns-object-broker/chart"
 	echo "-- Deploying CNS Object Broker"
 	util::exec_with_retry "gcloud compute ssh $GK_MASTER_NAME --zone=$GCP_ZONE \
-		--command='helm install $chart --name broker --namespace $ns'" \
+		--command='sudo helm install $chart --name broker --namespace $ns'" \
 		$RETRY_MAX \
 	|| return 1
 	BROKER_PORT=$(gcloud compute ssh $GK_MASTER_NAME \
-		--command="kubectl get svc -n $ns $svc_name \
+		--command="sudo kubectl get svc -n $ns $svc_name \
 		  -o jsonpath={.'spec'.'ports'[0].'nodePort'}")
 	if [[ -z "$BROKER_PORT" ]]; then
 		echo "-- Failed to get the cns service $svc_name's external port."
