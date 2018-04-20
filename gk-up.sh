@@ -277,7 +277,7 @@ function update_etc_hosts() {
 	echo "   Appending \"${HOSTS[*]}\" to $GK_MASTER_NAME's /etc/hosts."
 	#todo: this is not working
 	gcloud compute ssh "$GK_MASTER_NAME" --zone="$GCP_ZONE" \
-		--command="sudo su; printf '%s  %s  # Added by gk-up\n' ${HOSTS[*]} >>/etc/hosts"
+		--command="printf '%s  %s  # Added by gk-up\n' ${HOSTS[*]} | sudo tee -a /etc/hosts"
 }
 
 # Build gluster-Kubernetes topology file.
