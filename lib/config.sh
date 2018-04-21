@@ -19,7 +19,7 @@ verify-not-empty "GCP_ZONE"
 GCP_PROJECT=${PROJECT:-"$(gcloud config get-value project 2>/dev/null)"}
 verify-not-empty "GCP_PROJECT"
 CLUSTER_OS_IMAGE_PROJECT=${CLUSTER_OS_IMAGE_PROJECT:-"rhel-cloud"}
-CLUSTER_OS_IMAGE=${CLUSTER_OS_IMAGE:-"rhel-7-v20170930"}
+CLUSTER_OS_IMAGE=${CLUSTER_OS_IMAGE:-"rhel-7-v20180401"}
 GCP_NETWORK=${GCP_NETWORK:-"$GCP_USER-gluster-kubernetes"}  # TODO create network using $USER-gluster-kubernetes as name.
 # HARDWARE PRESETS
 MACHINE_TYPE=${MACHINE_TYPE:-"n1-standard-1"}
