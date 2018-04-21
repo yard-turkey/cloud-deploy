@@ -33,7 +33,7 @@ echo "-- Disabling SELinux"
 setenforce 0
 
 echo "-- Configuring SSH"
-sed -i 's#PermitRootLogin no#PermitRootLogin yes#' /etc/ssh/sshd_config
+sed -i 's#PermitRootLogin no#PermitRootLogin without-password#' /etc/ssh/sshd_config
 systemctl restart sshd
 
 # Updating yum certs
@@ -41,7 +41,7 @@ yum -y upgrade ca-certificates --disablerepo=epel
 
 # Docker
 echo "-- Installing Docker"
-yum install docker-1.12.6 -y -q -e 0
+yum install docker-1.13.1 -y -q -e 0
 
 echo "-- Starting Docker"
 systemctl enable docker
