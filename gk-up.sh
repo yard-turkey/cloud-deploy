@@ -308,7 +308,7 @@ function run_gk_deploy() {
 	printf "\n\nBEGIN DEBUG"
 	set -x
 	gcloud compute ssh "$GK_MASTER_NAME" --zone="$GCP_ZONE" \
-        --command="sudo $GK_DEPLOY -gvy --no-block ${s3_opts} /tmp/topology.json"
+        --command="sudo $GK_DEPLOY -gvy ${s3_opts} /tmp/topology.json"
 	set +x
 	printf "\n\n END DEBUG"
 	if (( $? != 0 )); then

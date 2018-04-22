@@ -105,8 +105,8 @@ EOF
 	
 	# Gluster-Kubernetes
 	echo "-- Getting gluster-kubernetes (s3 and block)"
-	curl -sSL https://github.com/copejon/gluster-kubernetes/archive/block-and-s3-sed-fix.tar.gz | tar -xz
-	#curl -sSL https://github.com/jarrpa/gluster-kubernetes/archive/block-and-s3.tar.gz | tar -xz
+	#curl -sSL https://github.com/copejon/gluster-kubernetes/archive/block-and-s3-sed-fix.tar.gz | tar -xz
+	curl -sSL https://github.com/gluster/gluster-kubernetes/archive/master.tar.gz | tar -xzv
 
 	# s3Curl
 	echo "-- Installing s3curl"
